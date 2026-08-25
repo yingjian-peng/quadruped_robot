@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build and package outputs
+build/
+dist/
+*.egg
+
+# Training and runtime outputs
+logs/
+**/logs/
+runs/
+checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Applications and large media outputs
+*.app
+*.exe
+*.mp4
+*.avi
+*.flv
+*.mov
+*.wmv
