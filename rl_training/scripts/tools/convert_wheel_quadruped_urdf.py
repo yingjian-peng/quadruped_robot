@@ -15,17 +15,17 @@ from isaaclab.app import AppLauncher
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 ROBOT_MODELS_DIR = PROJECT_ROOT / "robot_models"
 ASSETS = {
-    "b2w": (
-        ROBOT_MODELS_DIR / "b2w/urdf/b2w.urdf",
-        ROBOT_MODELS_DIR / "b2w/usd/b2w.usd",
+    "deeprobotics_m20": (
+        ROBOT_MODELS_DIR / "deeprobotics/m20_description/urdf/m20.urdf",
+        ROBOT_MODELS_DIR / "deeprobotics/m20_description/usd/m20.usd",
     ),
-    "go2w": (
-        ROBOT_MODELS_DIR / "go2w/urdf/go2w.urdf",
-        ROBOT_MODELS_DIR / "go2w/usd/go2w.usd",
+    "unitree_b2w": (
+        ROBOT_MODELS_DIR / "unitree/b2w_description/urdf/b2w_description.urdf",
+        ROBOT_MODELS_DIR / "unitree/b2w_description/usd/b2w_description.usd",
     ),
-    "b2w_z1": (
-        ROBOT_MODELS_DIR / "b2w_z1/urdf/b2w_z1.urdf",
-        ROBOT_MODELS_DIR / "b2w_z1/usd/b2w_z1.usd",
+    "unitree_go2w": (
+        ROBOT_MODELS_DIR / "unitree/go2w_description/urdf/go2w_description.urdf",
+        ROBOT_MODELS_DIR / "unitree/go2w_description/usd/go2w_description.usd",
     ),
 }
 

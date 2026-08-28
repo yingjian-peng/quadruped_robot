@@ -6,27 +6,33 @@
 
 ```text
 robot_models/
-├── b2w/
-├── b2w_z1/
-├── go2_arx/
-└── go2w/
+├── deeprobotics/
+│   ├── lite3_description/
+│   └── m20_description/
+└── unitree/
+    ├── a1_description/
+    ├── b2_description/
+    ├── b2w_description/
+    ├── g1_description/
+    ├── go2_description/
+    └── go2w_description/
 ```
 
 每个机器人目录整体保存 URDF、网格和生成的 USD，避免破坏 URDF 中的相对网格路径。
 
 ## USD conversion
 
-B2W、Go2W 和 B2W-Z1 的 USD 可通过训练侧转换工具生成。请在仓库根目录运行：
+轮足机器人的 USD 可通过训练侧转换工具生成。请在仓库根目录运行：
 
 ```bash
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
-  rl_training/scripts/tools/convert_wheel_quadruped_urdf.py b2w --headless
+  rl_training/scripts/tools/convert_wheel_quadruped_urdf.py unitree_b2w --headless
 
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
-  rl_training/scripts/tools/convert_wheel_quadruped_urdf.py go2w --headless
+  rl_training/scripts/tools/convert_wheel_quadruped_urdf.py unitree_go2w --headless
 
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
-  rl_training/scripts/tools/convert_wheel_quadruped_urdf.py b2w_z1 --headless
+  rl_training/scripts/tools/convert_wheel_quadruped_urdf.py deeprobotics_m20 --headless
 ```
 
 转换工具默认不会覆盖已有 USD；只有明确传入 `--force` 才会替换目标文件。

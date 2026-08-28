@@ -38,3 +38,6 @@ Thumbs.db
 *.flv
 *.mov
 *.wmv
+
+# Local upstream checkout used only as a migration reference
+/robot_lab/

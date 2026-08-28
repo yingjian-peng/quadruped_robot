@@ -15,7 +15,7 @@ quadruped_robot/
 
 - [`rl_training/`](rl_training/README.md)：Isaac Lab 任务、奖励/观测配置、PPO 训练入口和冒烟测试。
 - [`rl_deploy/`](rl_deploy/README.md)：部署侧工程骨架，后续承载 Sim-to-Sim 与 Sim-to-Real 实现。
-- [`robot_models/`](robot_models/README.md)：B2W、B2W-Z1、Go2-ARX 和 Go2W 模型资产。
+- [`robot_models/`](robot_models/README.md)：训练与部署共享的 DeepRobotics 和 Unitree 模型资产。
 
 ## Runtime baseline
 
@@ -23,7 +23,7 @@ quadruped_robot/
 
 ```text
 Isaac Sim: 4.5.0-rc.36
-Isaac Lab: 0.48.6
+Isaac Lab: 2.3.0
 Launcher: /home/robot/isaacsim/IsaacLab/isaaclab.sh
 ```
 

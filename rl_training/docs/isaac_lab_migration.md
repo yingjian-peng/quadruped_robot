@@ -5,13 +5,14 @@ This directory keeps the Isaac Sim / Isaac Lab migration of the quadruped traini
 ## Current layout
 
 ```text
-source/loco_manipulation_lab/
-  loco_manipulation_lab/
+source/robot_lab/
+  config/extension.toml
+  robot_lab/
     assets/
     tasks/
 scripts/reinforcement_learning/rsl_rl/
 scripts/tools/
-../robot_models/
+../robot_models/{deeprobotics,unitree}/
 ```
 
 The legacy Isaac Gym package was removed from this tree.
@@ -20,7 +21,7 @@ The legacy Isaac Gym package was removed from this tree.
 
 ```text
 Isaac Sim: 4.5.0-rc.36
-Isaac Lab: 0.48.6
+Isaac Lab: 2.3.0
 Launcher: /home/robot/isaacsim/IsaacLab/isaaclab.sh
 ```
 
@@ -28,30 +29,22 @@ Use the launcher for editable install and execution.
 
 ## Asset root
 
-Project-owned assets now live in the shared monorepo-level `../robot_models/` directory:
-
-- `../robot_models/go2_arx/urdf/go2_arx/go2_arx.usd`
-- `../robot_models/b2w/urdf/b2w.urdf`
-- `../robot_models/go2w/urdf/go2w.urdf`
-- `../robot_models/b2w_z1/urdf/b2w_z1.urdf`
-
-The wheel-quadruped converter writes the generated USD files back into the matching `usd/` subdirectories in the same tree.
+Robot assets are shared from `../robot_models/` and resolved by
+`robot_lab.assets.ROBOT_MODELS_DIR`. Deployment keeps its own model interfaces
+in `../rl_deploy/` while using the same model assets.
 
 ## Task scope
 
-The migrated Isaac Lab tasks are:
+The migrated Isaac Lab tasks cover:
 
-- `Go2-Arx-LocoManip-Flat-v0`
-- `Go2-RearLeg-Balance-Flat-v0`
-- `B2W-Z1-LocoManip-Flat-v0`
-- `B2W-WheelQuadruped-Rough-v0`
-- `Go2W-WheelQuadruped-Rough-v0`
+- DeepRobotics Lite3 and M20, flat and rough velocity control
+- Unitree A1, B2, Go2, B2W and Go2W, flat and rough velocity control
 
 ## Verification order
 
-1. Install the extension with `isaaclab.sh -p -m pip install -e source/loco_manipulation_lab`.
-2. Run `scripts/tools/list_envs.py` and confirm the expected task IDs.
-3. Run the smoke scripts in `scripts/tools/` with `--headless --num_envs 1`.
+1. Install the extension with `isaaclab.sh -p -m pip install -e source/robot_lab`.
+2. Run `scripts/tools/list_envs.py` and confirm the 14 target task IDs.
+3. Run `scripts/tools/smoke_wheel_quadruped.py unitree_go2w --headless --num_envs 1`.
 4. Only then start short PPO runs from `scripts/reinforcement_learning/rsl_rl/`.
 
 ## Current status

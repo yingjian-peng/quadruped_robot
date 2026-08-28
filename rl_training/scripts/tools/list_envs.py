@@ -10,21 +10,14 @@ simulation_app = app_launcher.app
 def main() -> None:
     import gymnasium as gym
 
-    import loco_manipulation_lab.tasks  # noqa: F401
+    import robot_lab.tasks  # noqa: F401
 
-    for task_id in sorted(spec.id for spec in gym.registry.values() if task_id_prefix(spec.id)):
+    for task_id in sorted(task_id for task_id in gym.registry if task_id_prefix(task_id)):
         print(task_id)
 
 
 def task_id_prefix(task_id: str) -> bool:
-    project_task_prefixes = (
-        "Go2-Arx-LocoManip-",
-        "Go2-RearLeg-Balance-",
-        "B2W-Z1-LocoManip-",
-        "B2W-WheelQuadruped-",
-        "Go2W-WheelQuadruped-",
-    )
-    return task_id.startswith(project_task_prefixes)
+    return task_id.startswith("RobotLab-Isaac-Velocity-")
 
 
 if __name__ == "__main__":

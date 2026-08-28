@@ -6,9 +6,9 @@ from isaaclab.app import AppLauncher
 
 
 TASKS = {
-    "b2w": "B2W-WheelQuadruped-Rough-v0",
-    "go2w": "Go2W-WheelQuadruped-Rough-v0",
-    "b2w_z1": "B2W-Z1-LocoManip-Flat-v0",
+    "deeprobotics_m20": "RobotLab-Isaac-Velocity-Rough-Deeprobotics-M20-v0",
+    "unitree_b2w": "RobotLab-Isaac-Velocity-Rough-Unitree-B2W-v0",
+    "unitree_go2w": "RobotLab-Isaac-Velocity-Rough-Unitree-Go2W-v0",
 }
 parser = argparse.ArgumentParser(description="Run a wheel-legged quadruped Isaac Lab smoke test.")
 parser.add_argument("robot", choices=sorted(TASKS))
@@ -26,7 +26,7 @@ def main() -> None:
 
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-    import loco_manipulation_lab.tasks  # noqa: F401
+    import robot_lab.tasks  # noqa: F401
 
     task_id = TASKS[args_cli.robot]
     env_cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")

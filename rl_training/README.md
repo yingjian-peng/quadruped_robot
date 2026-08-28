@@ -1,14 +1,24 @@
 # rl_training
 
-This subproject contains the Isaac Sim / Isaac Lab migration for quadruped locomotion and loco-manipulation training.
+Focused Isaac Lab 4.5 training extension for DeepRobotics and Unitree locomotion.
+The project keeps only the velocity task base and RSL-RL training
+configurations required by these two robot families. Robot models are shared
+from the repository-level `robot_models/` directory.
 
-## What is kept
+## Layout
 
-- `source/loco_manipulation_lab/`
-- `scripts/reinforcement_learning/rsl_rl/`
-- `scripts/tools/`
-- `docs/isaac_lab_migration.md`
-- `../robot_models/` (shared with deployment)
+```text
+source/robot_lab/
+  config/extension.toml
+  robot_lab/
+    assets/{deeprobotics,unitree}.py
+    tasks/manager_based/locomotion/velocity/
+scripts/reinforcement_learning/rsl_rl/
+../robot_models/{deeprobotics,unitree}/
+```
+
+The old loco-manipulation package and its ARX/Z1 task registrations are not part
+of this training project.
 
 The legacy Isaac Gym training package has been removed from this tree.
 
@@ -18,7 +28,7 @@ The current reference setup is:
 
 ```text
 Isaac Sim: 4.5.0-rc.36
-Isaac Lab: 0.48.6
+Isaac Lab: 2.3.0
 Launcher: /home/robot/isaacsim/IsaacLab/isaaclab.sh
 ```
 
@@ -27,7 +37,7 @@ Use the Isaac Lab launcher for install and execution:
 Run the following commands from the `rl_training/` directory.
 
 ```bash
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p -m pip install -e source/loco_manipulation_lab
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p -m pip install -e source/robot_lab
 ```
 
 List the registered Isaac Lab tasks:
@@ -36,28 +46,24 @@ List the registered Isaac Lab tasks:
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/tools/list_envs.py
 ```
 
-Expected task IDs:
+The task IDs are registered from `robot_lab.tasks` and include:
 
 ```text
-Go2-Arx-LocoManip-Flat-v0
-Go2-RearLeg-Balance-Flat-v0
-B2W-Z1-LocoManip-Flat-v0
-B2W-WheelQuadruped-Rough-v0
-Go2W-WheelQuadruped-Rough-v0
+RobotLab-Isaac-Velocity-{Flat,Rough}-Deeprobotics-Lite3-v0
+RobotLab-Isaac-Velocity-{Flat,Rough}-Deeprobotics-M20-v0
+RobotLab-Isaac-Velocity-{Flat,Rough}-Unitree-{A1,B2,Go2}-v0
+RobotLab-Isaac-Velocity-{Flat,Rough}-Unitree-{B2W,Go2W}-v0
 ```
 
 ## Asset layout
 
-The Isaac Sim code reads project-owned robot assets from the monorepo-level model directory:
+Assets are shared by training and deployment code and are resolved through
+`robot_lab.assets.ROBOT_MODELS_DIR`:
 
 ```text
-../robot_models/go2_arx/urdf/go2_arx/go2_arx.usd
-../robot_models/b2w/urdf/b2w.urdf
-../robot_models/go2w/urdf/go2w.urdf
-../robot_models/b2w_z1/urdf/b2w_z1.urdf
+../robot_models/deeprobotics/
+../robot_models/unitree/
 ```
-
-The wheel quadruped converter writes USDs back into the matching `../robot_models/.../usd/` folders.
 
 ## Smoke tests
 
@@ -65,22 +71,18 @@ Run the Isaac Lab smoke checks before training:
 
 ```bash
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
-  scripts/tools/smoke_go2_arx.py --headless --num_envs 1
+  scripts/tools/list_envs.py --headless
 
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
-  scripts/tools/smoke_go2_rear_leg_balance.py --headless --num_envs 1
-
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
-  scripts/tools/smoke_wheel_quadruped.py b2w --headless --num_envs 1
-
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
-  scripts/tools/smoke_wheel_quadruped.py go2w --headless --num_envs 1
+  scripts/reinforcement_learning/rsl_rl/train.py \
+  --task RobotLab-Isaac-Velocity-Rough-Unitree-Go2-v0 \
+  --headless --num_envs 1 --max_iterations 1
 ```
 
 The short PPO entry points are under `scripts/reinforcement_learning/rsl_rl/`.
 
-## Notes
+## Checkpoints
 
-- `Go2-Arx-LocoManip-Flat-v0` is the first migrated Isaac Lab task.
-- `Go2-RearLeg-Balance-Flat-v0` keeps the Go2 rear-leg balance behavior in quadruped scope.
-- `B2W-Z1-LocoManip-Flat-v0`, `B2W-WheelQuadruped-Rough-v0`, and `Go2W-WheelQuadruped-Rough-v0` are the wheel-legged tasks.
+Training writes checkpoints to `logs/rsl_rl/<experiment_name>/<run>/model_*.pt`.
+The repository currently contains parameter snapshots only; no trained checkpoint
+is included.
