@@ -10,7 +10,7 @@ simulation_app = app_launcher.app
 def main() -> None:
     import gymnasium as gym
 
-    import robot_lab.tasks  # noqa: F401
+    import quadruped_robot.tasks  # noqa: F401
 
     for task_id in sorted(task_id for task_id in gym.registry if task_id_prefix(task_id)):
         print(task_id)

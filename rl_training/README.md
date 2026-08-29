@@ -10,7 +10,7 @@ from the repository-level `robot_models/` directory.
 ```text
 source/robot_lab/
   config/extension.toml
-  robot_lab/
+  quadruped_robot/
     assets/{deeprobotics,unitree}.py
     tasks/manager_based/locomotion/velocity/
 scripts/reinforcement_learning/rsl_rl/
@@ -46,7 +46,7 @@ List the registered Isaac Lab tasks:
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/tools/list_envs.py
 ```
 
-The task IDs are registered from `robot_lab.tasks` and include:
+The task IDs are registered from `quadruped_robot.tasks` and include:
 
 ```text
 RobotLab-Isaac-Velocity-{Flat,Rough}-Deeprobotics-Lite3-v0
@@ -58,7 +58,7 @@ RobotLab-Isaac-Velocity-{Flat,Rough}-Unitree-{B2W,Go2W}-v0
 ## Asset layout
 
 Assets are shared by training and deployment code and are resolved through
-`robot_lab.assets.ROBOT_MODELS_DIR`:
+`quadruped_robot.assets.ROBOT_MODELS_DIR`:
 
 ```text
 ../robot_models/deeprobotics/

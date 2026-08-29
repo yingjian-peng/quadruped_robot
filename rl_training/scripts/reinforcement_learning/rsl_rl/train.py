@@ -35,7 +35,7 @@ def main() -> None:
     from isaaclab_tasks.utils import get_checkpoint_path
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-    import robot_lab.tasks  # noqa: F401
+    import quadruped_robot.tasks  # noqa: F401
 
     env_cfg: ManagerBasedRLEnvCfg = load_cfg_from_registry(args_cli.task, "env_cfg_entry_point")
     agent_cfg = load_cfg_from_registry(args_cli.task, "rsl_rl_cfg_entry_point")

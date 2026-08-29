@@ -7,7 +7,7 @@ This directory keeps the Isaac Sim / Isaac Lab migration of the quadruped traini
 ```text
 source/robot_lab/
   config/extension.toml
-  robot_lab/
+  quadruped_robot/
     assets/
     tasks/
 scripts/reinforcement_learning/rsl_rl/
@@ -30,7 +30,7 @@ Use the launcher for editable install and execution.
 ## Asset root
 
 Robot assets are shared from `../robot_models/` and resolved by
-`robot_lab.assets.ROBOT_MODELS_DIR`. Deployment keeps its own model interfaces
+`quadruped_robot.assets.ROBOT_MODELS_DIR`. Deployment keeps its own model interfaces
 in `../rl_deploy/` while using the same model assets.
 
 ## Task scope
