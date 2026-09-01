@@ -173,16 +173,58 @@ TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_
   --num_envs 4096
 ```
 
-指定 GPU 训练：
+指定 GPU 训练时使用 `--device cuda:0`，不要使用 `CUDA_VISIBLE_DEVICES=0`：
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
   --task RobotLab-Isaac-Velocity-Flat-Unitree-Go2-v0 \
   --headless \
-  --num_envs 4096
+  --num_envs 4096 \
+  --device cuda:0
 ```
 
-### 6. 查看训练日志和模型：
+### 6. 可视化回放训练好的策略：
+
+`play.py` 用于加载训练好的 RSL-RL 策略 checkpoint，并在 Isaac Sim 中观察机器人运动效果。脚本默认使用 `cuda:0`，渲染显示参数沿用 Isaac Lab/Isaac Sim 的默认 GUI 配置。通常只需要运行：
+
+```bash
+TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+  --task RobotLab-Isaac-Velocity-Flat-Unitree-Go2-v0 \
+  --num_envs 4
+```
+
+默认情况下，`play.py` 会从该任务对应的 `logs/rsl_rl/<experiment_name>/` 中自动加载最新 checkpoint。如果需要指定某一次训练结果：
+
+```bash
+TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+  --task RobotLab-Isaac-Velocity-Flat-Unitree-Go2-v0 \
+  --num_envs 4 \
+  --load_run 2026-08-29_13-12-12 \
+  --checkpoint model_0.pt
+```
+
+也可以直接传入模型文件路径：
+
+```bash
+TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+  --task RobotLab-Isaac-Velocity-Flat-Unitree-Go2-v0 \
+  --num_envs 4 \
+  --checkpoint_path logs/rsl_rl/unitree_go2_flat/2026-08-29_13-12-12/model_0.pt
+```
+
+如果需要切换机器人，只替换 `--task`，脚本会按对应任务自动寻找该机器人的最新 checkpoint：
+
+```bash
+TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+  --task RobotLab-Isaac-Velocity-Flat-Unitree-B2W-v0 \
+  --num_envs 10
+```
+
+回放时默认启用键盘速度控制，按住 `W/S` 控制前进/后退，`A/D` 控制横向移动，`Q/E` 控制转向，`L` 清零停止。也可以使用方向键和 `Z/X`。如果需要使用环境随机采样的速度命令，可添加 `--disable_keyboard_control`。
+
+黑屏原因说明：本机双 GPU 同时被 Isaac Sim 激活时，viewport 渲染路径可能不稳定。本工程默认固定训练和回放使用 `cuda:0`，并在 Kit 启动参数中关闭 multi-GPU、指定渲染 GPU0 和物理 GPU0；其它显示质量、分辨率、DLSS 等参数保持 Isaac Lab/Isaac Sim 默认配置，便于和 `train.py` 的显示效果保持一致。
+
+### 7. 查看训练日志和模型：
 
 ```bash
 ls logs/rsl_rl

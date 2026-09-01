@@ -19,6 +19,7 @@ parser.add_argument("--max_iterations", type=int, default=None, help="Override t
 cli_args.add_rsl_rl_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
+cli_args.apply_local_app_defaults(args_cli)
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -48,6 +49,11 @@ def main() -> None:
     if args_cli.device is not None:
         env_cfg.sim.device = args_cli.device
         agent_cfg.device = args_cli.device
+    env_cfg.viewer.origin_type = "asset_root"
+    env_cfg.viewer.asset_name = "robot"
+    env_cfg.viewer.env_index = 0
+    env_cfg.viewer.eye = (3.0, 3.0, 2.0)
+    env_cfg.viewer.lookat = (0.0, 0.0, 0.5)
 
     log_root = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
     log_dir = os.path.join(log_root, datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + (f"_{agent_cfg.run_name}" if agent_cfg.run_name else ""))

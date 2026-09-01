@@ -23,7 +23,6 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import quadruped_robot.tasks.manager_based.locomotion.velocity.mdp as mdp
@@ -57,10 +56,9 @@ class MySceneCfg(InteractiveSceneCfg):
             dynamic_friction=1.0,
             restitution=1.0,
         ),
-        visual_material=sim_utils.MdlFileCfg(
-            mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
-            project_uvw=True,
-            texture_scale=(0.25, 0.25),
+        visual_material=sim_utils.PreviewSurfaceCfg(
+            diffuse_color=(0.6, 0.6, 0.6),
+            roughness=0.7,
         ),
         debug_vis=False,
     )
@@ -88,8 +86,7 @@ class MySceneCfg(InteractiveSceneCfg):
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
         spawn=sim_utils.DomeLightCfg(
-            intensity=750.0,
-            texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
+            intensity=3000.0,
         ),
     )
 
