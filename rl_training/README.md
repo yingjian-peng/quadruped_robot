@@ -1,11 +1,11 @@
 # rl_training
 
-Focused Isaac Lab 4.5 training extension for DeepRobotics and Unitree locomotion.
-The project keeps only the velocity task base and RSL-RL training
-configurations required by these two robot families. Robot models are shared
-from the repository-level `robot_models/` directory.
+面向 DeepRobotics 与 Unitree 运动控制（locomotion）的精简版 Isaac Lab 4.5 训练扩展。
+本项目只保留这两类机器人所需的 velocity 任务基类与 RSL-RL 训练配置。
+机器人模型从仓库级 `robot_models/` 目录共享。Lite3 训练直接使用供应商提供的
+`deeprobotics/Lite3/Lite3_usd/Lite3.usd`，MuJoCo 可视化直接使用同一套资产中的 MJCF。
 
-## Layout
+## 目录结构
 
 ```text
 source/robot_lab/
@@ -17,14 +17,13 @@ scripts/reinforcement_learning/rsl_rl/
 ../robot_models/{deeprobotics,unitree}/
 ```
 
-The old loco-manipulation package and its ARX/Z1 task registrations are not part
-of this training project.
+旧版 loco-manipulation 包及其 ARX/Z1 任务注册不属于本训练项目。
 
-The legacy Isaac Gym training package has been removed from this tree.
+旧版 Isaac Gym 训练包已从本目录树中移除。
 
-## Runtime
+## 运行时
 
-The current reference setup is:
+当前参考环境配置为：
 
 ```text
 Isaac Sim: 4.5.0-rc.36
@@ -32,42 +31,40 @@ Isaac Lab: 2.3.0
 Launcher: /home/robot/isaacsim/IsaacLab/isaaclab.sh
 ```
 
-Use the Isaac Lab launcher for install and execution:
+安装与运行均使用 Isaac Lab 启动器。
 
-Run the following commands from the `rl_training/` directory.
+以下命令请在 `rl_training/` 目录下执行。
 
 ```bash
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p -m pip install -e source/robot_lab
 ```
 
-List the registered Isaac Lab tasks:
+列出已注册的 Isaac Lab 任务：
 
 ```bash
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/tools/list_envs.py
 ```
 
-The task IDs are registered from `quadruped_robot.tasks` and include:
+任务 ID 注册于 `quadruped_robot.tasks`，包括：
 
 ```text
 RobotLab-Isaac-Velocity-{Flat,Rough}-Deeprobotics-Lite3-v0
-RobotLab-Isaac-Velocity-{Flat,Rough}-Deeprobotics-M20-v0
 RobotLab-Isaac-Velocity-{Flat,Rough}-Unitree-{A1,B2,Go2}-v0
-RobotLab-Isaac-Velocity-{Flat,Rough}-Unitree-{B2W,Go2W}-v0
 ```
 
-## Asset layout
+## 资产布局
 
-Assets are shared by training and deployment code and are resolved through
-`quadruped_robot.assets.ROBOT_MODELS_DIR`:
+资产由训练与部署代码共享，并通过
+`quadruped_robot.assets.ROBOT_MODELS_DIR` 解析：
 
 ```text
 ../robot_models/deeprobotics/
 ../robot_models/unitree/
 ```
 
-## Smoke tests
+## 冒烟测试
 
-Run the Isaac Lab smoke checks before training:
+训练前先运行 Isaac Lab 冒烟检查：
 
 ```bash
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
@@ -75,14 +72,13 @@ TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
 
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
   scripts/reinforcement_learning/rsl_rl/train.py \
-  --task RobotLab-Isaac-Velocity-Rough-Unitree-Go2-v0 \
+  --task RobotLab-Isaac-Velocity-Rough-Deeprobotics-Lite3-v0 \
   --headless --num_envs 1 --max_iterations 1
 ```
 
-The short PPO entry points are under `scripts/reinforcement_learning/rsl_rl/`.
+短程 PPO 入口位于 `scripts/reinforcement_learning/rsl_rl/` 下。
 
-## Checkpoints
+## 检查点
 
-Training writes checkpoints to `logs/rsl_rl/<experiment_name>/<run>/model_*.pt`.
-The repository currently contains parameter snapshots only; no trained checkpoint
-is included.
+训练会将检查点写入 `logs/rsl_rl/<experiment_name>/<run>/model_*.pt`。
+当前仓库仅包含参数快照（parameter snapshots），未附带已训练的检查点。

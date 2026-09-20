@@ -1,6 +1,6 @@
 # quadruped_robot
 
-`quadruped_robot` 是一个面向腿式四足、轮式/轮足四足机器人的强化学习训练与验证工程。工程整合当前主流开源腿式机器人训练框架的常见组织方式，以 Isaac Sim / Isaac Lab 为仿真与任务基础，以 RSL-RL PPO 为主要训练入口，目标是在同一套工程中完成多类型四足机器人模型管理、强化学习任务配置、策略训练、仿真验证和后续部署衔接。
+`quadruped_robot` 是一个面向腿式四足机器人的强化学习训练与验证工程。工程整合当前主流开源腿式机器人训练框架的常见组织方式，以 Isaac Sim / Isaac Lab 为仿真与任务基础，以 RSL-RL PPO 为主要训练入口，目标是在同一套工程中完成四足机器人模型管理、强化学习任务配置、策略训练、仿真验证和后续部署衔接。
 
 当前版本重点支持 DeepRobotics 和 Unitree 系列机器人，任务以速度跟踪 locomotion 为主，包含平地和粗糙地形两类环境。训练侧 Python 包名统一为 `quadruped_robot`，安装路径为 `rl_training/source/robot_lab`。
 
@@ -34,30 +34,21 @@ RobotLab-Isaac-Velocity-{Flat,Rough}-{RobotName}-v0
 | 类型 | 厂商/系列 | 机器人 | 任务 |
 | --- | --- | --- | --- |
 | 腿式四足 | DeepRobotics | Lite3 | Flat / Rough velocity tracking |
-| 轮式/轮足四足 | DeepRobotics | M20 | Flat / Rough velocity tracking |
 | 腿式四足 | Unitree | A1 | Flat / Rough velocity tracking |
 | 腿式四足 | Unitree | B2 | Flat / Rough velocity tracking |
 | 腿式四足 | Unitree | Go2 | Flat / Rough velocity tracking |
-| 轮式/轮足四足 | Unitree | B2W | Flat / Rough velocity tracking |
-| 轮式/轮足四足 | Unitree | Go2W | Flat / Rough velocity tracking |
 
 完整任务 ID：
 
 ```text
 RobotLab-Isaac-Velocity-Flat-Deeprobotics-Lite3-v0
 RobotLab-Isaac-Velocity-Rough-Deeprobotics-Lite3-v0
-RobotLab-Isaac-Velocity-Flat-Deeprobotics-M20-v0
-RobotLab-Isaac-Velocity-Rough-Deeprobotics-M20-v0
 RobotLab-Isaac-Velocity-Flat-Unitree-A1-v0
 RobotLab-Isaac-Velocity-Rough-Unitree-A1-v0
 RobotLab-Isaac-Velocity-Flat-Unitree-B2-v0
 RobotLab-Isaac-Velocity-Rough-Unitree-B2-v0
-RobotLab-Isaac-Velocity-Flat-Unitree-B2W-v0
-RobotLab-Isaac-Velocity-Rough-Unitree-B2W-v0
 RobotLab-Isaac-Velocity-Flat-Unitree-Go2-v0
 RobotLab-Isaac-Velocity-Rough-Unitree-Go2-v0
-RobotLab-Isaac-Velocity-Flat-Unitree-Go2W-v0
-RobotLab-Isaac-Velocity-Rough-Unitree-Go2W-v0
 ```
 
 ## 三、工程架构
@@ -87,15 +78,11 @@ quadruped_robot/
 │   └── sim_to_real/
 └── robot_models/
     ├── deeprobotics/
-    │   ├── lite3_description/
-    │   └── m20_description/
+    │   └── Lite3/
     └── unitree/
         ├── a1_description/
         ├── b2_description/
-        ├── b2w_description/
-        ├── g1_description/
-        ├── go2_description/
-        └── go2w_description/
+        └── g1_description/
 ```
 
 主要目录说明：
@@ -216,3 +203,4 @@ DAE、STL、USD 和 OBJ 文件由根目录 `.gitattributes` 统一跟踪。
 
 - （fan-ziqi）https://github.com/fan-ziqi/robot_lab
 - （DeepRoboticsLab）https://github.com/DeepRoboticsLab/rl_training
+- （unitree_rl_lab）https://github.com/unitreerobotics/unitree_rl_lab

@@ -1,0 +1,16 @@
+<mujocoinclude>
+  <asset>
+    <texture name="view_sky" type="skybox" builtin="gradient"
+             rgb1="0.62 0.65 0.69" rgb2="0.92 0.93 0.95" width="512" height="512"/>
+    <texture name="view_grid_texture" type="2d" builtin="checker"
+             rgb1="0.16 0.18 0.22" rgb2="0.30 0.33 0.38" width="512" height="512"/>
+    <material name="view_grid_material" texture="view_grid_texture" texrepeat="12 12" reflectance="0.08"/>
+  </asset>
+  <worldbody>
+    <geom name="view_floor" type="plane" size="6 6 0.1" material="view_grid_material"
+          contype="1" conaffinity="0"/>
+  </worldbody>
+  <visual>
+    <headlight ambient="0.55 0.55 0.55" diffuse="0.90 0.90 0.90" specular="0.20 0.20 0.20"/>
+  </visual>
+</mujocoinclude>

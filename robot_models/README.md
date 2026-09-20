@@ -7,32 +7,30 @@
 ```text
 robot_models/
 ├── deeprobotics/
-│   ├── lite3_description/
-│   └── m20_description/
+│   └── Lite3/
+│       ├── Lite3_mjcf/
+│       ├── Lite3_urdf/
+│       └── Lite3_usd/
 └── unitree/
     ├── a1_description/
     ├── b2_description/
-    ├── b2w_description/
-    ├── g1_description/
-    ├── go2_description/
-    └── go2w_description/
+    └── go2_description/
 ```
 
-每个机器人目录整体保存 URDF、网格和生成的 USD，避免破坏 URDF 中的相对网格路径。
+Lite3 保留供应商给出的三种原生格式：MuJoCo 使用 `Lite3_mjcf/mjcf/Lite3.xml`，
+Isaac Lab 训练使用 `Lite3_usd/Lite3.usd`；`Lite3_urdf` 仅保留作互操作/重新转换的源文件。
 
 ## USD conversion
 
-轮足机器人的 USD 可通过训练侧转换工具生成。请在仓库根目录运行：
+腿足机器人的 USD 可通过训练侧转换工具生成。请在仓库根目录运行：
 
 ```bash
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
-  rl_training/scripts/tools/convert_wheel_quadruped_urdf.py unitree_b2w --headless
+  rl_training/scripts/tools/convert_wheel_quadruped_urdf.py unitree_b2 --headless
 
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
-  rl_training/scripts/tools/convert_wheel_quadruped_urdf.py unitree_go2w --headless
+  rl_training/scripts/tools/convert_wheel_quadruped_urdf.py unitree_go2 --headless
 
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
-  rl_training/scripts/tools/convert_wheel_quadruped_urdf.py deeprobotics_m20 --headless
 ```
 
 转换工具默认不会覆盖已有 USD；只有明确传入 `--force` 才会替换目标文件。
