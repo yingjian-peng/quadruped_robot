@@ -17,7 +17,7 @@ parser.add_argument("--checkpoint_path", type=str, default=None, help="Path to a
 parser.add_argument(
     "--export_onnx",
     action="store_true",
-    help="Export policy.onnx from the checkpoint and exit without opening the UI.",
+    help="Export ONNX policy files from checkpoint(s) and exit without opening the UI.",
 )
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -73,12 +73,12 @@ def configure_viewer(env_cfg) -> None:
     env_cfg.viewer.origin_type = "world"
 
 
-def resolve_checkpoint(agent_cfg) -> str:
+def resolve_checkpoints(agent_cfg, num_checkpoints: int = 1) -> list[str]:
     if args_cli.checkpoint_path is not None:
         checkpoint = os.path.abspath(args_cli.checkpoint_path)
         if not os.path.isfile(checkpoint):
             raise FileNotFoundError(f"Checkpoint file does not exist: {checkpoint}")
-        return checkpoint
+        return [checkpoint]
 
     log_root = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
     checkpoints = [
@@ -89,12 +89,17 @@ def resolve_checkpoint(agent_cfg) -> str:
     ]
     if not checkpoints:
         raise FileNotFoundError(f"No model_*.pt checkpoint found under: {log_root}")
-    return max(checkpoints, key=os.path.getmtime)
+    checkpoints.sort(key=os.path.getmtime)
+    return checkpoints[-num_checkpoints:]
+
+
+def resolve_checkpoint(agent_cfg) -> str:
+    return resolve_checkpoints(agent_cfg)[-1]
 
 
 def export_policy_to_onnx(runner, checkpoint: str) -> str:
     export_model_dir = os.path.join(os.path.dirname(checkpoint), "exported")
-    filename = "policy.onnx"
+    filename = os.path.splitext(os.path.basename(checkpoint))[0] + ".onnx"
     if hasattr(runner, "export_policy_to_onnx"):
         runner.export_policy_to_onnx(path=export_model_dir, filename=filename)
     else:
@@ -154,19 +159,25 @@ def main() -> None:
         env_cfg.commands.base_velocity.debug_vis = False
     configure_viewer(env_cfg)
 
-    checkpoint = resolve_checkpoint(agent_cfg)
-    print(f"[INFO] Loading checkpoint: {checkpoint}")
+    checkpoints = (
+        resolve_checkpoints(agent_cfg, num_checkpoints=5) if args_cli.export_onnx else [resolve_checkpoint(agent_cfg)]
+    )
 
     env = RslRlVecEnvWrapper(gym.make(args_cli.task, cfg=env_cfg), clip_actions=agent_cfg.clip_actions)
     try:
         runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-        runner.load(checkpoint)
 
         if args_cli.export_onnx:
-            exported_path = export_policy_to_onnx(runner, checkpoint)
-            print(f"[INFO] Exported ONNX policy: {exported_path}")
+            for checkpoint in checkpoints:
+                print(f"[INFO] Loading checkpoint: {checkpoint}")
+                runner.load(checkpoint)
+                exported_path = export_policy_to_onnx(runner, checkpoint)
+                print(f"[INFO] Exported ONNX policy: {exported_path}")
             return
 
+        checkpoint = checkpoints[0]
+        print(f"[INFO] Loading checkpoint: {checkpoint}")
+        runner.load(checkpoint)
         policy = runner.get_inference_policy(device=env.unwrapped.device)
         apply_keyboard_command = make_keyboard_controller(env)
         print("[INFO] Keyboard UI mode: use mouse for view, hold W/S/A/D/Q/E or arrow/Z/X keys, press L to stop.")
