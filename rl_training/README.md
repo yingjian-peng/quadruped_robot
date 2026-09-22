@@ -34,7 +34,7 @@ Launcher: /home/robot/isaacsim/IsaacLab/isaaclab.sh
 以下命令请在 `rl_training/` 目录下执行。
 
 ```bash
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p -m pip install -e source/robot_lab
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p -m pip install --no-build-isolation -e source/robot_lab
 ```
 
 列出已注册的 Isaac Lab 任务：
@@ -46,8 +46,8 @@ TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/tools/list_envs.
 任务 ID 注册于 `quadruped_robot.tasks`，包括：
 
 ```text
-RobotLab-Isaac-Velocity-{Flat,Rough}-Deeprobotics-Lite3-v0
-RobotLab-Isaac-Velocity-{Flat,Rough}-Unitree-{A1,B2,Go2}-v0
+QuadrupedRobot-Velocity-{Flat,Rough}-Deeprobotics-Lite3-v0
+QuadrupedRobot-Velocity-{Flat,Rough}-Unitree-{A1,B2,Go2}-v0
 ```
 
 ## 资产布局
@@ -70,7 +70,7 @@ TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
 
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
   scripts/reinforcement_learning/rsl_rl/train.py \
-  --task RobotLab-Isaac-Velocity-Rough-Deeprobotics-Lite3-v0 \
+  --task QuadrupedRobot-Velocity-Rough-Deeprobotics-Lite3-v0 \
   --headless --num_envs 1 --max_iterations 1
 ```
 

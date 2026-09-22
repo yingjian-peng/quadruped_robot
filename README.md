@@ -9,26 +9,25 @@
 本工程已在以下本机环境完成基础验证：
 
 ```text
-操作系统: Ubuntu 22.04.5 LTS
-GPU: NVIDIA GeForce RTX 2080 Ti x 2
-显存: 22 GB x 2
-Python: 3.10.20
-Conda 环境: pyj_rl_env
-Isaac Sim: 4.5.0
-Isaac Lab: 2.1.0
-PyTorch: 2.5.1+cu121
-rsl-rl-lib: 2.3.1
-Isaac Lab Launcher: /home/ias/IsaacLab/isaaclab.sh
+操作系统: Ubuntu 20.04.6 LTS（内核 5.15.0-139）
+GPU: NVIDIA GeForce RTX 5070 Ti
+显存: 16 GB（驱动 570.133.20）
+Python: 3.10.15（Isaac Sim 自带 Python）
+Isaac Sim: 4.5.0（安装于 /mnt/isaacdisk/isaacsim，/home/robot/isaacsim 为指向它的符号链接）
+Isaac Lab: 2.3.0（isaaclab 扩展 0.48.6）
+PyTorch: 2.7.0+cu128
+rsl-rl-lib: 3.1.2
+Isaac Lab Launcher: /home/robot/isaacsim/IsaacLab/isaaclab.sh
 ```
 
-注意：直接运行 `/home/ias/IsaacLab/isaaclab.sh` 前需要先激活 `pyj_rl_env`，否则 launcher 可能找不到当前 Conda 环境中的 Python。
+注意：本工程直接使用 Isaac Sim 自带的 Python，**不需要激活 conda 环境**；`isaaclab.sh -p` 会自动选择该解释器。
 
 ## 二、支持的机器人与任务
 
 当前工程注册了 8 个 Isaac Lab 任务，任务命名格式为：
 
 ```text
-RobotLab-Isaac-Velocity-{Flat,Rough}-{RobotName}-v0
+QuadrupedRobot-Velocity-{Flat,Rough}-{RobotName}-v0
 ```
 
 | 类型 | 厂商/系列 | 机器人 | 任务 |
@@ -41,14 +40,14 @@ RobotLab-Isaac-Velocity-{Flat,Rough}-{RobotName}-v0
 完整任务 ID：
 
 ```text
-RobotLab-Isaac-Velocity-Flat-Deeprobotics-Lite3-v0
-RobotLab-Isaac-Velocity-Rough-Deeprobotics-Lite3-v0
-RobotLab-Isaac-Velocity-Flat-Unitree-A1-v0
-RobotLab-Isaac-Velocity-Rough-Unitree-A1-v0
-RobotLab-Isaac-Velocity-Flat-Unitree-B2-v0
-RobotLab-Isaac-Velocity-Rough-Unitree-B2-v0
-RobotLab-Isaac-Velocity-Flat-Unitree-Go2-v0
-RobotLab-Isaac-Velocity-Rough-Unitree-Go2-v0
+QuadrupedRobot-Velocity-Flat-Deeprobotics-Lite3-v0
+QuadrupedRobot-Velocity-Rough-Deeprobotics-Lite3-v0
+QuadrupedRobot-Velocity-Flat-Unitree-A1-v0
+QuadrupedRobot-Velocity-Rough-Unitree-A1-v0
+QuadrupedRobot-Velocity-Flat-Unitree-B2-v0
+QuadrupedRobot-Velocity-Rough-Unitree-B2-v0
+QuadrupedRobot-Velocity-Flat-Unitree-Go2-v0
+QuadrupedRobot-Velocity-Rough-Unitree-Go2-v0
 ```
 
 ## 三、工程架构
@@ -59,6 +58,7 @@ quadruped_robot/
 ├── rl_training/
 │   ├── README.md
 │   ├── docs/
+│   │   ├── go2_rl_framework_analysis.md
 │   │   └── isaac_lab_migration.md
 │   ├── scripts/
 │   │   ├── reinforcement_learning/rsl_rl/
@@ -82,7 +82,7 @@ quadruped_robot/
     └── unitree/
         ├── a1_description/
         ├── b2_description/
-        └── g1_description/
+        └── go2_description/
 ```
 
 主要目录说明：
@@ -99,20 +99,19 @@ quadruped_robot/
 以下命令默认从训练目录运行：
 
 ```bash
-cd /home/ias/pengyingjian_quadrupedrobot/quadruped_robot/rl_training
-conda activate pyj_rl_env
+cd /home/robot/pengyingjian_external/quadruped_robot/rl_training
 ```
 
 ### 1. 确认工程已安装：
 
 ```bash
-python -m pip show quadruped_robot
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p -m pip show quadruped_robot
 ```
 
 重新安装当前工程命令：
 
 ```bash
-TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p -m pip install --no-build-isolation -e source/robot_lab
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p -m pip install --no-build-isolation -e source/robot_lab
 ```
 
 ### 2. 查看数量和任务列表
@@ -120,20 +119,20 @@ TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p -m pip install --no-build-isolation
 #### （1）统计已注册任务数量：
 
 ```bash
-python -c "import gymnasium as gym; import quadruped_robot.tasks; print(len([i for i in gym.registry if i.startswith('RobotLab-Isaac-Velocity-')]))"
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p -c "import gymnasium as gym; import quadruped_robot.tasks; print(len([i for i in gym.registry if i.startswith('QuadrupedRobot-Velocity-')]))"
 ```
 
 #### （2）列出 Isaac Lab 可见的任务：
 
 ```bash
-TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/tools/list_envs.py --headless
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/tools/list_envs.py --headless
 ```
 
 ### 3. 正式训练：
 
 ```bash
-TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-  --task RobotLab-Isaac-Velocity-Flat-Unitree-Go2-v0 \
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+  --task QuadrupedRobot-Velocity-Flat-Unitree-Go2-v0 \
   --headless \
   --num_envs 4096
 ```
@@ -143,8 +142,8 @@ TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_
 #### (1) 查看策略效果：
 
 ```bash
-TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
-  --task RobotLab-Isaac-Velocity-Flat-Unitree-Go2-v0
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+  --task QuadrupedRobot-Velocity-Flat-Unitree-Go2-v0
 ```
 
 > 只显示 1 个机器人，鼠标调整视角，键盘控制速度指令，并默认显示速度命令箭头。
@@ -154,16 +153,16 @@ TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_
 #### (2) 查看指定pt效果：
 
 ```bash
-TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
-  --task RobotLab-Isaac-Velocity-Flat-Unitree-Go2-v0 \
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+  --task QuadrupedRobot-Velocity-Flat-Unitree-Go2-v0 \
   --checkpoint_path logs/rsl_rl/unitree_go2_flat/2026-08-29_13-12-12/model_0.pt
 ```
 
 #### (3) 快速导出 ONNX 策略
 
 ```bash
-TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
-  --task RobotLab-Isaac-Velocity-Flat-Unitree-Go2-v0 \
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+  --task QuadrupedRobot-Velocity-Flat-Unitree-Go2-v0 \
   --export_onnx
 ```
 
@@ -172,7 +171,7 @@ TERM=xterm /home/ias/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_
 > 导出模式支持 `--checkpoint_path` 指定模型文件。
 
 
-### 7. 查看训练日志和模型：
+### 5. 查看训练日志和模型：
 
 ```bash
 ls logs/rsl_rl

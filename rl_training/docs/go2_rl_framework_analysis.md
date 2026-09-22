@@ -36,8 +36,8 @@ Gym task ID
 工程为 Go2 注册了两个 Gym 环境：
 
 ```text
-RobotLab-Isaac-Velocity-Flat-Unitree-Go2-v0
-RobotLab-Isaac-Velocity-Rough-Unitree-Go2-v0
+QuadrupedRobot-Velocity-Flat-Unitree-Go2-v0
+QuadrupedRobot-Velocity-Rough-Unitree-Go2-v0
 ```
 
 ## 二、训练过程（train）
@@ -49,7 +49,7 @@ cd /home/robot/pengyingjian_external/quadruped_robot/rl_training
 
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
   scripts/reinforcement_learning/rsl_rl/train.py \
-  --task RobotLab-Isaac-Velocity-Rough-Unitree-Go2-v0 \
+  --task QuadrupedRobot-Velocity-Rough-Unitree-Go2-v0 \
   --headless --num_envs 4096
 ```
 

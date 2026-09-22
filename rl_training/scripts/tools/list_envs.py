@@ -17,7 +17,7 @@ def main() -> None:
 
 
 def task_id_prefix(task_id: str) -> bool:
-    return task_id.startswith("RobotLab-Isaac-Velocity-")
+    return task_id.startswith("QuadrupedRobot-Velocity-")
 
 
 if __name__ == "__main__":
