@@ -17,9 +17,7 @@ scripts/reinforcement_learning/rsl_rl/
 ../robot_models/{deeprobotics,unitree}/
 ```
 
-旧版 loco-manipulation 包及其 ARX/Z1 任务注册不属于本训练项目。
-
-旧版 Isaac Gym 训练包已从本目录树中移除。
+旧版 loco-manipulation 包与旧版 Isaac Gym 训练包均已从本目录树和环境安装中移除。
 
 ## 运行时
 

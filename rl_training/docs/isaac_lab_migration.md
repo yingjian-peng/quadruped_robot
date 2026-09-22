@@ -43,9 +43,9 @@ Launcher: /home/robot/isaacsim/IsaacLab/isaaclab.sh
 ## 验证顺序
 
 1. 使用 `isaaclab.sh -p -m pip install -e source/robot_lab` 安装扩展。
-2. 运行 `scripts/tools/list_envs.py`，确认 14 个目标任务 ID。
-3. 运行 `scripts/tools/smoke_wheel_quadruped.py unitree_go2 --headless --num_envs 1`。
-4. 之后才从 `scripts/reinforcement_learning/rsl_rl/` 启动短程 PPO 训练。
+2. 运行 `scripts/tools/list_envs.py`，确认 8 个目标任务 ID。
+3. 运行 `scripts/reinforcement_learning/rsl_rl/train.py --task <TASK_ID> --headless --num_envs 1 --max_iterations 1`，确认任务能创建并完成一次迭代。
+4. 确认无误后再按目标环境数启动完整 PPO 训练。
 
 ## 当前状态
 

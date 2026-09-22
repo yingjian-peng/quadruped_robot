@@ -1,6 +1,6 @@
 # Unitree Go2 强化学习框架分析
 
-本文只分析本工程中的 **Unitree Go2 腿式四足机器人**，不覆盖 Go2W、B2、A1 或 DeepRobotics 系列。
+本文只分析本工程中的 **Unitree Go2 腿式四足机器人**，不覆盖 B2、A1 或 DeepRobotics 系列。
 
 ## 先读结论
 
@@ -76,7 +76,7 @@ TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
 
 训练迭代数：rough 默认 20,000，flat 默认 5,000；每 100 iteration 保存一次。
 
-> `agents/cusrl_ppo_cfg.py` 虽然保留在工程中，但当前 `scripts/reinforcement_learning/rsl_rl/train.py` 不读取它；本训练入口实际使用的是 RSL-RL。
+> 本工程只使用 RSL-RL 作为训练算法库，任务注册仅包含 `env_cfg_entry_point` 与 `rsl_rl_cfg_entry_point`；`scripts/reinforcement_learning/rsl_rl/train.py` 读取后者。
 
 训练产物位于：
 
@@ -336,6 +336,5 @@ rough Go2 所学的是：
 - 导航到指定空间目标；
 - 路径规划；
 - 直接力矩控制；
-- actor 侧的前视地形图感知；
-- Go2W 等轮足机器人的轮式控制逻辑。
+- actor 侧的前视地形图感知。
 

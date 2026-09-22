@@ -25,7 +25,7 @@ Isaac Lab Launcher: /home/ias/IsaacLab/isaaclab.sh
 
 ## 二、支持的机器人与任务
 
-当前工程注册了 14 个 Isaac Lab 任务，任务命名格式为：
+当前工程注册了 8 个 Isaac Lab 任务，任务命名格式为：
 
 ```text
 RobotLab-Isaac-Velocity-{Flat,Rough}-{RobotName}-v0
@@ -64,7 +64,7 @@ quadruped_robot/
 │   │   ├── reinforcement_learning/rsl_rl/
 │   │   │   ├── train.py
 │   │   │   ├── play.py
-│   │   │   └── export_policy_as_jit.py
+│   │   │   └── cli_args.py
 │   │   └── tools/
 │   │       └── list_envs.py
 │   └── source/robot_lab/
@@ -195,9 +195,6 @@ git lfs install
 ```
 
 DAE、STL、USD 和 OBJ 文件由根目录 `.gitattributes` 统一跟踪。
-
-
-
 
 ## 参考工程
 

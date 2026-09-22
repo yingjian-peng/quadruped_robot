@@ -290,17 +290,6 @@ class EventCfg:
         },
     )
 
-    # Skip: inertia updated via mass randomization by setting recompute_inertia=True
-    # randomize_rigid_body_inertia = EventTerm(
-    #     func=mdp.randomize_rigid_body_inertia,
-    #     mode="startup",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-    #         "inertia_distribution_params": (0.5, 1.5),
-    #         "operation": "scale",
-    #     },
-    # )
-
     randomize_com_positions = EventTerm(
         func=mdp.randomize_rigid_body_com,
         mode="startup",
@@ -451,18 +440,6 @@ class RewardsCfg:
         },
     )
 
-    wheel_vel_penalty = RewTerm(
-        func=mdp.wheel_vel_penalty,
-        weight=0.0,
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=""),
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=""),
-            "command_name": "base_velocity",
-            "velocity_threshold": 0.5,
-            "command_threshold": 0.1,
-        },
-    )
-
     joint_mirror = RewTerm(
         func=mdp.joint_mirror,
         weight=0.0,
@@ -501,8 +478,6 @@ class RewardsCfg:
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*")},
     )
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=0.0)
-    # smoothness_1 = RewTerm(func=mdp.smoothness_1, weight=0.0)  # Same as action_rate_l2
-    # smoothness_2 = RewTerm(func=mdp.smoothness_2, weight=0.0)  # Unvaliable now
 
     # Contact sensor
     undesired_contacts = RewTerm(
@@ -616,27 +591,6 @@ class RewardsCfg:
             "command_name": "base_velocity",
         },
     )
-
-    feet_distance_y_exp = RewTerm(
-        func=mdp.feet_distance_y_exp,
-        weight=0.0,
-        params={
-            "std": math.sqrt(0.25),
-            "asset_cfg": SceneEntityCfg("robot", body_names=""),
-            "stance_width": float,
-        },
-    )
-
-    # feet_distance_xy_exp = RewTerm(
-    #     func=mdp.feet_distance_xy_exp,
-    #     weight=0.0,
-    #     params={
-    #         "std": math.sqrt(0.25),
-    #         "asset_cfg": SceneEntityCfg("robot", body_names=""),
-    #         "stance_length": float,
-    #         "stance_width": float,
-    #     },
-    # )
 
     upward = RewTerm(func=mdp.upward, weight=0.0)
 
