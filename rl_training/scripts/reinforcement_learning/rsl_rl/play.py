@@ -114,10 +114,12 @@ def export_policy_to_onnx(runner, checkpoint: str) -> str:
 def make_keyboard_controller(env):
     import numpy as np
     import torch
-    from isaaclab.devices import Se2Keyboard
+    from isaaclab.devices import Se2Keyboard, Se2KeyboardCfg
 
     command_term = env.unwrapped.command_manager.get_term("base_velocity")
-    keyboard = Se2Keyboard(v_x_sensitivity=0.8, v_y_sensitivity=0.4, omega_z_sensitivity=1.0)
+    keyboard = Se2Keyboard(
+        Se2KeyboardCfg(v_x_sensitivity=0.8, v_y_sensitivity=0.4, omega_z_sensitivity=1.0)
+    )
     keyboard._INPUT_KEY_MAPPING.update(
         {
             "W": np.asarray([1.0, 0.0, 0.0]) * 0.8,

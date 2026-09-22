@@ -321,6 +321,39 @@ def feet_air_time_variance_penalty(env: ManagerBasedRLEnv, sensor_cfg: SceneEnti
     return reward
 
 
+def feet_gait(
+    env: ManagerBasedRLEnv,
+    period: float,
+    offset: list[float],
+    threshold: float,
+    command_threshold: float,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Clock-driven gait reward: fraction of feet whose contact state matches the gait clock.
+
+    Ported from Fysics_rl_mjlab (unitree_rl_mjlab) ``mdp.feet_gait``: each foot follows a phase
+    clock of ``period`` seconds with a per-foot ``offset``; while a leg's phase is below
+    ``threshold`` (duty factor) the foot is expected to be in stance, otherwise in swing.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    is_contact = contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
+    global_phase = (env.episode_length_buf * env.step_dt / period).unsqueeze(1)
+    offsets = torch.as_tensor(offset, device=env.device, dtype=global_phase.dtype).view(1, -1)
+    leg_phase = (global_phase + offsets) % 1.0
+    is_stance = leg_phase < threshold
+    reward = (is_stance == is_contact).float().mean(dim=1)
+    if command_name is not None:
+        command = env.command_manager.get_command(command_name)
+        if command is not None:
+            linear_norm = torch.norm(command[:, :2], dim=1)
+            angular_norm = torch.abs(command[:, 2])
+            total_command = linear_norm + angular_norm
+            scale = (total_command > command_threshold).float()
+            reward *= scale
+    return reward
+
+
 def feet_contact(
     env: ManagerBasedRLEnv, command_name: str, expect_contact_num: int, sensor_cfg: SceneEntityCfg
 ) -> torch.Tensor:

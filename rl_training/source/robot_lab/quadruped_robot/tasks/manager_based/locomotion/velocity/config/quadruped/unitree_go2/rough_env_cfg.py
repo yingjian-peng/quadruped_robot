@@ -1,8 +1,11 @@
 # Copyright (c) 2024-2026 Ziqi Fan
 # SPDX-License-Identifier: Apache-2.0
 
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
+import quadruped_robot.tasks.manager_based.locomotion.velocity.mdp as mdp
 from quadruped_robot.tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
 ##
@@ -45,6 +48,15 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.observations.policy.height_scan = None
         self.observations.policy.joint_pos.params["asset_cfg"].joint_names = self.joint_names
         self.observations.policy.joint_vel.params["asset_cfg"].joint_names = self.joint_names
+        # 步态相位观测（sin/cos 时钟，仅 Go2；移植自 Fysics_rl_mjlab，period 与 feet_gait 奖励一致）
+        self.observations.policy.gait_phase = ObsTerm(
+            func=mdp.gait_phase,
+            params={"period": 0.6, "command_name": "base_velocity"},
+        )
+        self.observations.critic.gait_phase = ObsTerm(
+            func=mdp.gait_phase,
+            params={"period": 0.6, "command_name": "base_velocity"},
+        )
 
         # ------------------------------Actions------------------------------
         # reduce action scale
@@ -53,22 +65,23 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.actions.joint_pos.joint_names = self.joint_names
 
         # ------------------------------Events------------------------------
+        # 收敛 reset 姿态随机化：roll/pitch 只小幅扰动（±0.3 rad ≈ 17°），悬空高度减半，yaw 保持全向
         self.events.randomize_reset_base.params = {
             "pose_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (0.0, 0.2),
-                "roll": (-3.14, 3.14),
-                "pitch": (-3.14, 3.14),
+                "x": (-0.3, 0.3),
+                "y": (-0.3, 0.3),
+                "z": (0.0, 0.1),
+                "roll": (-0.3, 0.3),
+                "pitch": (-0.3, 0.3),
                 "yaw": (-3.14, 3.14),
             },
             "velocity_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (-0.5, 0.5),
-                "roll": (-0.5, 0.5),
-                "pitch": (-0.5, 0.5),
-                "yaw": (-0.5, 0.5),
+                "x": (-0.33, 0.33),
+                "y": (-0.33, 0.33),
+                "z": (-0.33, 0.33),
+                "roll": (-0.33, 0.33),
+                "pitch": (-0.33, 0.33),
+                "yaw": (-0.33, 0.33),
             },
         }
         self.events.randomize_rigid_body_mass_base.params["asset_cfg"].body_names = [self.base_link_name]
@@ -77,6 +90,23 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         ]
         self.events.randomize_com_positions.params["asset_cfg"].body_names = [self.base_link_name]
         self.events.randomize_apply_external_force_torque.params["asset_cfg"].body_names = [self.base_link_name]
+
+        # 域随机化整体减弱 1/3（区间中心不变、半宽 × 2/3）
+        self.events.randomize_rigid_body_material.params["static_friction_range"] = (0.42, 0.88)
+        self.events.randomize_rigid_body_material.params["dynamic_friction_range"] = (0.38, 0.72)
+        self.events.randomize_rigid_body_material.params["restitution_range"] = (0.08, 0.42)
+        self.events.randomize_rigid_body_mass_base.params["mass_distribution_params"] = (-0.33, 2.33)
+        self.events.randomize_rigid_body_mass_others.params["mass_distribution_params"] = (0.8, 1.2)
+        self.events.randomize_com_positions.params["com_range"] = {
+            "x": (-0.033, 0.033),
+            "y": (-0.033, 0.033),
+            "z": (-0.033, 0.033),
+        }
+        self.events.randomize_actuator_gains.params["stiffness_distribution_params"] = (0.75, 1.75)
+        self.events.randomize_actuator_gains.params["damping_distribution_params"] = (0.75, 1.75)
+        self.events.randomize_apply_external_force_torque.params["force_range"] = (-6.7, 6.7)
+        self.events.randomize_apply_external_force_torque.params["torque_range"] = (-6.7, 6.7)
+        self.events.randomize_push_robot.params["velocity_range"] = {"x": (-0.33, 0.33), "y": (-0.33, 0.33)}
 
         # ------------------------------Rewards------------------------------
         # General
@@ -122,7 +152,8 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.track_ang_vel_z_exp.weight = 1.5
 
         # Others
-        self.rewards.feet_air_time.weight = 0.1
+        # 迈步激励适当加强（0.1 -> 0.3）
+        self.rewards.feet_air_time.weight = 0.3
         self.rewards.feet_air_time.params["threshold"] = 0.5
         self.rewards.feet_air_time.params["sensor_cfg"].body_names = [self.foot_link_name]
         self.rewards.feet_air_time_variance.weight = -1.0
@@ -142,8 +173,17 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.feet_height_body.weight = -5.0
         self.rewards.feet_height_body.params["target_height"] = -0.2
         self.rewards.feet_height_body.params["asset_cfg"].body_names = [self.foot_link_name]
+        # 时钟式步态奖励（移植自 Fysics_rl_mjlab）：四腿接触状态与 0.6s 周期时钟对齐
         self.rewards.feet_gait.weight = 0.5
-        self.rewards.feet_gait.params["synced_feet_pair_names"] = (("FL_calf", "RR_calf"), ("FR_calf", "RL_calf"))
+        self.rewards.feet_gait.func = mdp.feet_gait
+        self.rewards.feet_gait.params = {
+            "period": 0.6,
+            "offset": [0.0, 0.5, 0.5, 0.0],  # 脚顺序 [FL, FR, RL, RR]：FL/RR 同相、FR/RL 同相（trot）
+            "threshold": 0.56,
+            "command_threshold": 0.1,
+            "command_name": "base_velocity",
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=[self.foot_link_name]),
+        }
         self.rewards.upward.weight = 1.0
 
         # If the weight of rewards is 0, set rewards to None
@@ -155,10 +195,9 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.terminations.illegal_contact = None
 
         # ------------------------------Curriculums------------------------------
-        # self.curriculum.command_levels_lin_vel.params["range_multiplier"] = (0.2, 1.0)
-        # self.curriculum.command_levels_ang_vel.params["range_multiplier"] = (0.2, 1.0)
-        self.curriculum.command_levels_lin_vel = None
-        self.curriculum.command_levels_ang_vel = None
+        # 命令课程：跟踪奖励达到 80% 上限后，每 episode 命令范围 ±0.1 递增（0.2 倍起步 → 1.0 倍封顶）
+        self.curriculum.command_levels_lin_vel.params["range_multiplier"] = (0.2, 1.0)
+        self.curriculum.command_levels_ang_vel.params["range_multiplier"] = (0.2, 1.0)
 
         # ------------------------------Commands------------------------------
         # self.commands.base_velocity.ranges.lin_vel_x = (-1.0, 1.0)
