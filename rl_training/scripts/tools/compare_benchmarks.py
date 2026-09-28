@@ -1,22 +1,21 @@
 """Compare Isaac Lab locomotion benchmark summaries across training runs.
 
 ``benchmark.py`` writes ``benchmark/summary.csv`` next to every checkpoint it evaluates.
-This tool lines those summaries up so a configuration change can be judged against the
-previous run without re-launching Isaac Sim, and (with ``--gates``) checks the current
-acceptance thresholds of the Go2 flat task.
+This tool lines those summaries up so a Lite3 configuration change can be judged against
+the previous run without re-launching Isaac Sim.
 
 Examples
 --------
 Compare two explicit runs::
 
     python3 scripts/tools/compare_benchmarks.py \
-        logs/rsl_rl/unitree_go2_flat/2026-09-23_17-55-23_lateral_yaw_v1 \
-        logs/rsl_rl/unitree_go2_flat/2026-09-24_*/gait_v2
+        logs/rsl_rl/deeprobotics_lite3_flat/<baseline-run> \
+        logs/rsl_rl/deeprobotics_lite3_flat/<candidate-run>
 
-Compare every benchmarked run under a log root, with gate checks and a CSV export::
+Compare every benchmarked run under the Lite3 flat log root and export a CSV::
 
-    python3 scripts/tools/compare_benchmarks.py --root logs/rsl_rl/unitree_go2_flat \
-        --gates --csv /tmp/go2_bench_table.csv
+    python3 scripts/tools/compare_benchmarks.py --root logs/rsl_rl/deeprobotics_lite3_flat \
+        --csv /tmp/lite3_bench_table.csv
 """
 
 from __future__ import annotations
@@ -41,19 +40,6 @@ METRICS: tuple[tuple[str, str], ...] = (
 
 CATEGORIES = ("stand", "forward", "forward_yaw", "lateral", "lateral_yaw", "yaw")
 LOCOMOTION = tuple(category for category in CATEGORIES if category != "stand")
-
-# Acceptance thresholds for the Go2 flat task: (category, metric, operator, value, absolute).
-# ``category`` is either a category name or "locomotion" for the locomotion average; ``absolute``
-# compares |value| against the threshold (used for the signed stand yaw-rate drift).
-GATES: tuple[tuple[str, str, str, float, bool], ...] = (
-    ("locomotion", "mae_vx", "<=", 0.08, False),
-    ("locomotion", "mae_vy", "<=", 0.05, False),
-    ("locomotion", "mae_wz", "<=", 0.08, False),
-    ("locomotion", "gait_clock_match", ">=", 0.62, False),
-    ("forward", "action_rate_l2", "<=", 1.25, False),
-    ("stand", "actual_wz", "<=", 0.02, True),
-)
-
 
 class RunSummary:
     """Category-level rows of one ``summary.csv`` file."""
@@ -126,29 +112,12 @@ def print_metric_table(metric: str, label: str, runs: list[RunSummary], baseline
         print(f"{category:<{width}}{cells}")
 
 
-def gate_report(runs: list[RunSummary]) -> None:
-    print("\n== acceptance gates ==")
-    for category, metric, operator, threshold, absolute in GATES:
-        for run in runs:
-            value = run.average(LOCOMOTION, metric) if category == "locomotion" else run.value(category, metric)
-            checked = abs(value) if absolute else value
-            if checked != checked:
-                status = "n/a"
-            else:
-                passed = checked <= threshold if operator == "<=" else checked >= threshold
-                status = "PASS" if passed else "FAIL"
-            scope = "locomotion avg" if category == "locomotion" else category
-            shown = f"|{value:.3f}|" if absolute else f"{value:.3f}"
-            print(f"  [{status}] {run.label:<34} {scope:<15} {metric:<18} {operator} {threshold:<6} now {shown}")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("paths", nargs="*", type=Path, help="Run / benchmark directories or summary.csv files.")
     parser.add_argument("--root", type=Path, default=None, help="Discover all benchmarked runs under this log root.")
     parser.add_argument("--metrics", nargs="*", default=None, help="Subset of metric keys to print.")
     parser.add_argument("--baseline", type=int, default=0, help="Index of the run used to compute deltas.")
-    parser.add_argument("--gates", action="store_true", help="Check the Go2 acceptance thresholds.")
     parser.add_argument("--csv", type=Path, default=None, help="Write a long-form comparison table to this CSV.")
     args = parser.parse_args()
 
@@ -166,9 +135,6 @@ def main() -> None:
         print(f"  {run.label:<40} {run.path}")
     for metric, label in metrics:
         print_metric_table(metric, label, runs, args.baseline)
-    if args.gates:
-        gate_report(runs)
-
     if args.csv:
         with args.csv.open("w", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)

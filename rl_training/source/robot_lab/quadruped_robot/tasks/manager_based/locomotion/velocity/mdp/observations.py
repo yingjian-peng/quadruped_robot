@@ -16,9 +16,8 @@ if TYPE_CHECKING:
 def gait_phase(env: ManagerBasedRLEnv, period: float, command_name: str) -> torch.Tensor:
     """Gait phase clock as a sin/cos pair (2-dim), zeroed when standing.
 
-    Ported from Fysics_rl_mjlab (unitree_rl_mjlab) ``mdp.phase``: the phase wraps every
-    ``period`` seconds and restarts at each episode reset, giving the actor an internal
-    oscillator signal to entrain a periodic gait (e.g. trot).
+    The phase wraps every ``period`` seconds and restarts at each episode reset,
+    giving the actor an internal oscillator signal to entrain a periodic gait.
 
     Args:
         period: Duration of one full gait cycle in seconds.

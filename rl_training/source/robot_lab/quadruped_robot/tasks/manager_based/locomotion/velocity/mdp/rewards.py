@@ -352,9 +352,9 @@ def feet_gait(
 ) -> torch.Tensor:
     """Clock-driven gait reward: fraction of feet whose contact state matches the gait clock.
 
-    Ported from Fysics_rl_mjlab (unitree_rl_mjlab) ``mdp.feet_gait``: each foot follows a phase
-    clock of ``period`` seconds with a per-foot ``offset``; while a leg's phase is below
-    ``threshold`` (duty factor) the foot is expected to be in stance, otherwise in swing.
+    Each foot follows a phase clock of ``period`` seconds with a per-foot ``offset``;
+    while a leg's phase is below ``threshold`` (duty factor) the foot is expected to
+    be in stance, otherwise in swing.
 
     With ``forward_dominant_only`` the diagonal-trot convention is only enforced at full
     strength for forward-dominant commands, because pure side-stepping and in-place turning do

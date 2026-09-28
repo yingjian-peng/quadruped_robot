@@ -7,10 +7,10 @@ version = "2.3.2"
 category = "isaaclab"
 readme  = "README.md"
 
-title = "RL Extension Library for Robots, Based on IsaacLab."
+title = "Lite3 RL Extension Based on Isaac Lab"
 author = "Ziqi Fan"
 maintainer = "Ziqi Fan"
-description="RL Extension Library for Robots, Based on IsaacLab."
+description="Isaac Lab locomotion training for the DeepRobotics Lite3."
 repository = "https://github.com/fan-ziqi/robot_lab.git"
 keywords = ["extension", "quadruped_robot", "isaaclab"]
 

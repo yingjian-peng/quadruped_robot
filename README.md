@@ -1,205 +1,193 @@
 # quadruped_robot
 
-`quadruped_robot` 是一个面向腿式四足机器人的强化学习训练与验证工程。工程整合当前主流开源腿式机器人训练框架的常见组织方式，以 Isaac Sim / Isaac Lab 为仿真与任务基础，以 RSL-RL PPO 为主要训练入口，目标是在同一套工程中完成四足机器人模型管理、强化学习任务配置、策略训练、仿真验证和后续部署衔接。
+`quadruped_robot` 是一个专注于 **DeepRobotics Lite3** 的强化学习运动控制工程。工程以
+Isaac Sim / Isaac Lab 为仿真与任务基础，以 RSL-RL PPO 为训练入口，覆盖模型管理、速度跟踪
+策略训练、量化评测、Sim-to-Sim 验证以及后续 Sim-to-Real 接入。
 
-当前版本重点支持 DeepRobotics 和 Unitree 系列机器人，任务以速度跟踪 locomotion 为主，包含平地和粗糙地形两类环境。训练侧 Python 包名统一为 `quadruped_robot`，安装路径为 `rl_training/source/robot_lab`。
+当前仓库只保留 Lite3。集中维护一套机器人模型和训练配置，有利于持续校准仿真参数、奖励、
+观测、命令分布和部署接口，并用真机实验闭环验证每次修改。
 
-## 一、工程环境
+![DeepRobotics Lite3](img/lite3.png)
 
-本工程已在以下本机环境完成基础验证：
+## 支持范围
+
+工程注册两个 Isaac Lab 任务：
+
+```text
+QuadrupedRobot-Velocity-Flat-Deeprobotics-Lite3-v0
+QuadrupedRobot-Velocity-Rough-Deeprobotics-Lite3-v0
+```
+
+| 任务 | 用途 |
+| --- | --- |
+| Flat | 在无限平面上训练基础站立、前后、横移和转向能力 |
+| Rough | 在程序化地形上训练地形适应能力，并启用地形课程 |
+
+策略输出 12 个关节的位置目标增量，底层由 Lite3 的 PD actuator 配置转换为关节力矩。
+
+## 参考环境
 
 ```text
 操作系统: Ubuntu 20.04.6 LTS（内核 5.15.0-139）
 GPU: NVIDIA GeForce RTX 5070 Ti
 显存: 16 GB（驱动 570.133.20）
 Python: 3.10.15（Isaac Sim 自带 Python）
-Isaac Sim: 4.5.0（安装于 /mnt/isaacdisk/isaacsim，/home/robot/isaacsim 为指向它的符号链接）
+Isaac Sim: 4.5.0
 Isaac Lab: 2.3.0（isaaclab 扩展 0.48.6）
 PyTorch: 2.7.0+cu128
 rsl-rl-lib: 3.1.2
 Isaac Lab Launcher: /home/robot/isaacsim/IsaacLab/isaaclab.sh
 ```
 
-注意：本工程直接使用 Isaac Sim 自带的 Python，**不需要激活 conda 环境**；`isaaclab.sh -p` 会自动选择该解释器。
+本工程直接使用 Isaac Sim 自带的 Python，不需要激活 conda 环境；`isaaclab.sh -p` 会自动
+选择正确解释器。
 
-## 二、支持的机器人与任务
-
-当前工程注册了 8 个 Isaac Lab 任务，任务命名格式为：
-
-```text
-QuadrupedRobot-Velocity-{Flat,Rough}-{RobotName}-v0
-```
-
-| 类型 | 厂商/系列 | 机器人 | 任务 |
-| --- | --- | --- | --- |
-| 腿式四足 | DeepRobotics | Lite3 | Flat / Rough velocity tracking |
-| 腿式四足 | Unitree | A1 | Flat / Rough velocity tracking |
-| 腿式四足 | Unitree | B2 | Flat / Rough velocity tracking |
-| 腿式四足 | Unitree | Go2 | Flat / Rough velocity tracking |
-
-完整任务 ID：
-
-```text
-QuadrupedRobot-Velocity-Flat-Deeprobotics-Lite3-v0
-QuadrupedRobot-Velocity-Rough-Deeprobotics-Lite3-v0
-QuadrupedRobot-Velocity-Flat-Unitree-A1-v0
-QuadrupedRobot-Velocity-Rough-Unitree-A1-v0
-QuadrupedRobot-Velocity-Flat-Unitree-B2-v0
-QuadrupedRobot-Velocity-Rough-Unitree-B2-v0
-QuadrupedRobot-Velocity-Flat-Unitree-Go2-v0
-QuadrupedRobot-Velocity-Rough-Unitree-Go2-v0
-```
-
-## 三、工程架构
+## 工程结构
 
 ```text
 quadruped_robot/
 ├── README.md
+├── img/lite3.png
+├── robot_models/
+│   └── deeprobotics/Lite3/
+│       ├── Lite3_mjcf/
+│       ├── Lite3_urdf/
+│       └── Lite3_usd/
 ├── rl_training/
 │   ├── README.md
 │   ├── docs/
-│   │   ├── go2_rl_framework_analysis.md
-│   │   └── isaac_lab_migration.md
+│   │   ├── isaac_lab_migration.md
+│   │   └── lite3_training_strategy.md
 │   ├── scripts/
 │   │   ├── reinforcement_learning/rsl_rl/
 │   │   │   ├── train.py
 │   │   │   ├── play.py
-│   │   │   └── cli_args.py
+│   │   │   └── benchmark.py
 │   │   └── tools/
+│   │       ├── compare_benchmarks.py
 │   │       └── list_envs.py
-│   └── source/robot_lab/
-│       ├── config/extension.toml
-│       ├── setup.py
-│       └── quadruped_robot/
-│           ├── assets/
-│           └── tasks/manager_based/locomotion/velocity/
-├── rl_deploy/
-│   ├── sim_to_sim/
-│   └── sim_to_real/
-└── robot_models/
-    ├── deeprobotics/
-    │   └── Lite3/
-    └── unitree/
-        ├── a1_description/
-        ├── b2_description/
-        └── go2_description/
+│   └── source/robot_lab/quadruped_robot/
+│       ├── assets/deeprobotics.py
+│       └── tasks/manager_based/locomotion/velocity/
+└── rl_deploy/
+    ├── sim_to_sim/
+    └── sim_to_real/
 ```
 
-主要目录说明：
+训练、部署和可视化共享 `robot_models/deeprobotics/Lite3/` 中的同一套模型资产。
 
-- `rl_training/`：Isaac Lab 训练工程，包含任务注册、环境配置、奖励/观测配置、PPO agent 配置和训练脚本。
-- `rl_training/source/robot_lab/quadruped_robot/assets/`：机器人资产入口，统一解析 `robot_models/` 下的模型路径。
-- `rl_training/source/robot_lab/quadruped_robot/tasks/`：Isaac Lab Gym 任务注册与 Manager-Based locomotion 任务实现。
-- `rl_training/scripts/reinforcement_learning/rsl_rl/`：RSL-RL 训练、回放和策略导出入口。
-- `robot_models/`：训练与部署共享的机器人模型资源，包括 URDF、USD、mesh 等。
-- `rl_deploy/`：部署侧目录，预留 Sim-to-Sim、Sim-to-Real、策略导出后验证等流程。
+## 安装与任务检查
 
-## 四、常用命令
-
-以下命令默认从训练目录运行：
+以下命令默认从 `rl_training/` 目录执行：
 
 ```bash
 cd /home/robot/pengyingjian_external/quadruped_robot/rl_training
-```
 
-### 1. 确认工程已安装：
-
-```bash
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p -m pip show quadruped_robot
-```
-
-重新安装当前工程命令：
-
-```bash
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p -m pip install --no-build-isolation -e source/robot_lab
-```
-
-### 2. 查看数量和任务列表
-
-#### （1）统计已注册任务数量：
-
-```bash
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p -c "import gymnasium as gym; import quadruped_robot.tasks; print(len([i for i in gym.registry if i.startswith('QuadrupedRobot-Velocity-')]))"
-```
-
-#### （2）列出 Isaac Lab 可见的任务：
-
-```bash
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/tools/list_envs.py --headless
-```
-
-### 3. 正式训练：
-
-```bash
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-  --task QuadrupedRobot-Velocity-Flat-Unitree-Go2-v0 \
-  --headless \
-  --num_envs 4096
-```
-
-### 4. 回放或导出训练好的策略：
-
-#### (1) 查看策略效果：
-
-```bash
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
-  --task QuadrupedRobot-Velocity-Flat-Unitree-Go2-v0
-```
-
-> 只显示 1 个机器人，鼠标调整视角，键盘控制速度指令，并默认显示速度命令箭头。
-
-> W/S` 控制前进/后退，`A/D` 控制横向移动，`Q/E` 控制转向，`L` 清零停止；也可以使用方向键和 `Z/X`。
-
-#### (2) 查看指定pt效果：
-
-```bash
-cd ~/pengyingjian_external/quadruped_robot/rl_training
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p -m pip install \
+  --no-build-isolation -e source/robot_lab
 
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
-  scripts/reinforcement_learning/rsl_rl/play.py \
-  --task QuadrupedRobot-Velocity-Flat-Unitree-Go2-v0 \
-  --checkpoint_path logs/rsl_rl/unitree_go2_flat/2026-09-22_17-11-24/model_4999.pt
+  scripts/tools/list_envs.py --headless
 ```
 
-#### (3) 快速导出 ONNX 策略
+列表中应只有两个 `QuadrupedRobot-Velocity-*` 任务。
+
+## 训练
+
+建议先获得稳定的 Flat 基线，再训练 Rough：
 
 ```bash
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
-  --task QuadrupedRobot-Velocity-Flat-Unitree-Go2-v0 \
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
+  scripts/reinforcement_learning/rsl_rl/train.py \
+  --task QuadrupedRobot-Velocity-Flat-Deeprobotics-Lite3-v0 \
+  --headless --num_envs 4096
+```
+
+```bash
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
+  scripts/reinforcement_learning/rsl_rl/train.py \
+  --task QuadrupedRobot-Velocity-Rough-Deeprobotics-Lite3-v0 \
+  --headless --num_envs 4096
+```
+
+训练输出位于：
+
+```text
+logs/rsl_rl/deeprobotics_lite3_{flat|rough}/<run>/
+├── model_*.pt
+├── events.out.tfevents.*
+└── params/
+    ├── env.yaml
+    └── agent.yaml
+```
+
+## 回放与导出
+
+```bash
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
+  scripts/reinforcement_learning/rsl_rl/play.py \
+  --task QuadrupedRobot-Velocity-Flat-Deeprobotics-Lite3-v0 \
+  --checkpoint_path logs/rsl_rl/deeprobotics_lite3_flat/<run>/model_<iteration>.pt
+```
+
+键盘控制：`W/S` 前后，`A/D` 横移，`Q/E` 转向，`L` 清零停止；也可使用方向键与 `Z/X`。
+
+导出 ONNX：
+
+```bash
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
+  scripts/reinforcement_learning/rsl_rl/play.py \
+  --task QuadrupedRobot-Velocity-Flat-Deeprobotics-Lite3-v0 \
+  --checkpoint_path logs/rsl_rl/deeprobotics_lite3_flat/<run>/model_<iteration>.pt \
   --export_onnx
 ```
 
-> 导出的文件默认保存到 checkpoint 同级目录下的 `exported/policy.onnx`。
+导出文件默认写入 checkpoint 同级的 `exported/policy.onnx`。
 
-> 导出模式支持 `--checkpoint_path` 指定模型文件。
+## 量化评测
 
-
-### 5. 查看训练日志和模型：
+不要只依赖回放观感或总 reward。`benchmark.py` 会重复评测站立、前后、横移、原地转向和混合
+指令，并输出速度误差、机身倾角、足端滑移、动作变化率、关节功率和步态时钟匹配度：
 
 ```bash
-ls logs/rsl_rl
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
+  scripts/reinforcement_learning/rsl_rl/benchmark.py \
+  --task QuadrupedRobot-Velocity-Flat-Deeprobotics-Lite3-v0 \
+  --checkpoint_path logs/rsl_rl/deeprobotics_lite3_flat/<run>/model_<iteration>.pt \
+  --headless --trials 5 --duration_s 8 --warmup_s 2
 ```
 
-训练输出默认写入：
+对比多个已评测 run：
 
-```text
-rl_training/logs/rsl_rl/<experiment_name>/<timestamp>/
+```bash
+python3 scripts/tools/compare_benchmarks.py \
+  --root logs/rsl_rl/deeprobotics_lite3_flat
 ```
 
-其中包含 `model_*.pt`、`params/env.yaml`、`params/agent.yaml` 和 TensorBoard event 文件。
+先用第一条完整 Lite3 基线建立验收门槛，再以相同随机种子、命令矩阵、时长和 trial 数比较配置，
+避免把仿真波动误认为改进。训练策略与调参顺序见
+[Lite3 训练策略](rl_training/docs/lite3_training_strategy.md)。
 
-## 五、Git LFS
+## Sim-to-Sim
 
-机器人网格与 USD 文件通过 Git LFS 管理。克隆或提交本仓库前请安装并初始化 Git LFS：
+在仓库根目录运行 Lite3 MuJoCo 模型检查：
+
+```bash
+conda activate pyj_rl_simtosim
+python rl_deploy/sim_to_sim/view_robot.py
+python rl_deploy/sim_to_sim/view_robot.py --gravity
+```
+
+## Git LFS
+
+Lite3 的 STL 与 USD 资产通过 Git LFS 管理：
 
 ```bash
 git lfs install
+git lfs ls-files
 ```
-
-DAE、STL、USD 和 OBJ 文件由根目录 `.gitattributes` 统一跟踪。
 
 ## 参考工程
 
-- （fan-ziqi）https://github.com/fan-ziqi/robot_lab
-- （DeepRoboticsLab）https://github.com/DeepRoboticsLab/rl_training
-- （unitree_rl_lab）https://github.com/unitreerobotics/unitree_rl_lab
+- https://github.com/fan-ziqi/robot_lab
+- https://github.com/DeepRoboticsLab/rl_training

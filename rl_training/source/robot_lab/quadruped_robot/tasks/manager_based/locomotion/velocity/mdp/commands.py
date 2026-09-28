@@ -43,8 +43,9 @@ class UniformThresholdVelocityCommand(mdp.UniformVelocityCommand):
         """Resample velocity commands with threshold."""
         super()._resample_command(env_ids)
         self._sample_command_modes(env_ids)
-        # set small commands to zero
-        self.vel_command_b[env_ids, :2] *= (torch.norm(self.vel_command_b[env_ids, :2], dim=1) > 0.2).unsqueeze(1)
+        # Set commands below the 0.2 m/s deadband to zero. Keep exactly 0.2 m/s:
+        # that is the first linear command produced by the 20% command curriculum.
+        self.vel_command_b[env_ids, :2] *= (torch.norm(self.vel_command_b[env_ids, :2], dim=1) >= 0.2).unsqueeze(1)
 
     def _sample_command_modes(self, env_ids: Sequence[int]) -> None:
         """Increase coverage of cardinal commands without changing the default distribution.

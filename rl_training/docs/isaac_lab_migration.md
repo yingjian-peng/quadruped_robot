@@ -1,52 +1,47 @@
-# Isaac Lab 迁移说明
+# LITE3 Isaac Lab 工程说明
 
-本目录将四足机器人训练项目的 Isaac Sim / Isaac Lab 迁移内容保留在 `quadruped_robot` 单体仓库（monorepo）内。
+训练项目采用单仓库布局，LITE3 模型由训练与部署代码共享。
 
-## 当前目录结构
+## 目录关系
 
 ```text
-source/robot_lab/
+rl_training/source/robot_lab/
   config/extension.toml
   quadruped_robot/
-    assets/
-    tasks/
-scripts/reinforcement_learning/rsl_rl/
-scripts/tools/
-../robot_models/{deeprobotics,unitree}/
+    assets/deeprobotics.py
+    tasks/manager_based/locomotion/velocity/
+rl_training/scripts/reinforcement_learning/rsl_rl/
+rl_training/scripts/tools/
+robot_models/deeprobotics/Lite3/
+rl_deploy/
 ```
 
-旧版 Isaac Gym 包已从本目录树中移除。
+`quadruped_robot.assets.ROBOT_MODELS_DIR` 从扩展源码位置向上查找仓库根目录，不依赖固定的绝对路径。
+Isaac Lab 训练直接加载 `Lite3_usd/Lite3.usd`；部署侧复用同一模型根目录。
 
 ## 运行时基线
 
 ```text
-Isaac Sim: 4.5.0-rc.36
+Isaac Sim: 4.5.0
 Isaac Lab: 2.3.0
 Launcher: /home/robot/isaacsim/IsaacLab/isaaclab.sh
 ```
 
-可编辑安装（editable install）与运行均使用该启动器。
-
-## 资产根目录
-
-机器人资产从 `../robot_models/` 共享，并由
-`quadruped_robot.assets.ROBOT_MODELS_DIR` 解析。部署代码在 `../rl_deploy/`
-中保留自己的模型接口，同时复用同一套模型资产。
-
 ## 任务范围
 
-迁移后的 Isaac Lab 任务涵盖：
+```text
+QuadrupedRobot-Velocity-Flat-Deeprobotics-Lite3-v0
+QuadrupedRobot-Velocity-Rough-Deeprobotics-Lite3-v0
+```
 
-- DeepRobotics Lite3，平地与崎岖地形的速度控制
-- Unitree A1、B2 与 Go2，平地与崎岖地形的速度控制
+Flat 用于建立基础运动策略；Rough 在同一套观测、动作和机器人参数之上增加程序化地形、高度扫描
+和地形难度课程。
 
 ## 验证顺序
 
-1. 使用 `isaaclab.sh -p -m pip install -e source/robot_lab` 安装扩展。
-2. 运行 `scripts/tools/list_envs.py`，确认 8 个目标任务 ID。
-3. 运行 `scripts/reinforcement_learning/rsl_rl/train.py --task <TASK_ID> --headless --num_envs 1 --max_iterations 1`，确认任务能创建并完成一次迭代。
-4. 确认无误后再按目标环境数启动完整 PPO 训练。
-
-## 当前状态
-
-训练子项目仅保留 Isaac Lab 迁移内容。部署代码与共享模型分别在 `../rl_deploy/` 与 `../robot_models/` 中独立维护。
+1. 使用 `isaaclab.sh -p -m pip install --no-build-isolation -e source/robot_lab` 安装扩展。
+2. 运行 `scripts/tools/list_envs.py --headless`，确认只有两个 LITE3 任务。
+3. 对 Flat 任务运行 `--num_envs 1 --max_iterations 1` 冒烟训练。
+4. 训练完整 Flat 基线并执行固定协议 benchmark。
+5. 在保持评测协议不变的前提下逐项修改奖励或随机化，每次只验证少量可归因改动。
+6. Flat 达标后再进入 Rough 和 Sim-to-Sim，最后根据真机辨识数据推进 Sim-to-Real。

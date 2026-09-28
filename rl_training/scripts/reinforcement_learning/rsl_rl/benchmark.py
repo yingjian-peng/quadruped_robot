@@ -54,6 +54,8 @@ if not args_cli.summarize_only:
 
 simulation_app = None
 
+LITE3_FOOT_NAMES = ("FL_FOOT", "FR_FOOT", "HL_FOOT", "HR_FOOT")
+
 
 @dataclass(frozen=True)
 class CommandCase:
@@ -142,15 +144,15 @@ def mean_or_nan(values: list[float]) -> float:
 
 
 def build_foot_indices(robot, contact_sensor):
-    """Resolve matching asset/sensor indices and make the foot order explicit."""
-    asset_ids, asset_names = robot.find_bodies(".*_calf")
-    sensor_ids, sensor_names = contact_sensor.find_bodies(".*_calf")
-    asset_by_name = dict(zip(asset_names, asset_ids, strict=True))
-    sensor_by_name = dict(zip(sensor_names, sensor_ids, strict=True))
-    foot_names = sorted(set(asset_by_name) & set(sensor_by_name))
-    if len(foot_names) != 4:
-        raise RuntimeError(f"Expected four calf contacts; resolved asset={asset_names}, sensor={sensor_names}")
-    return foot_names, [asset_by_name[name] for name in foot_names], [sensor_by_name[name] for name in foot_names]
+    """Resolve Lite3 foot indices in the phase-clock order."""
+    asset_ids, asset_names = robot.find_bodies(list(LITE3_FOOT_NAMES), preserve_order=True)
+    sensor_ids, sensor_names = contact_sensor.find_bodies(list(LITE3_FOOT_NAMES), preserve_order=True)
+    if tuple(asset_names) != LITE3_FOOT_NAMES or tuple(sensor_names) != LITE3_FOOT_NAMES:
+        raise RuntimeError(
+            "Could not resolve all Lite3 feet in FL/FR/HL/HR order: "
+            f"asset={asset_names}, sensor={sensor_names}"
+        )
+    return list(LITE3_FOOT_NAMES), asset_ids, sensor_ids
 
 
 def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_ids):
@@ -239,13 +241,7 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
         phase = (unwrapped.episode_length_buf * unwrapped.step_dt / 0.6).unsqueeze(1) % 1.0
         offsets = torch.tensor([0.0, 0.5, 0.5, 0.0], device=unwrapped.device)
         expected_stance = ((phase + offsets) % 1.0) < 0.56
-        # The policy configuration specifies FL/FR/RL/RR. Resolve the same order
-        # even if the sensor's internal body order differs.
-        gait_names = ["FL_calf", "FR_calf", "RL_calf", "RR_calf"]
-        foot_name_to_index = {name: index for index, name in enumerate(foot_names)}
-        if all(name in foot_name_to_index for name in gait_names):
-            expected_contact = contact[:, [foot_name_to_index[name] for name in gait_names]]
-            samples["gait_clock_match"] += (expected_stance == expected_contact).float().mean(dim=1)
+        samples["gait_clock_match"] += (expected_stance == contact).float().mean(dim=1)
 
         action = unwrapped.action_manager.action
         if previous_action is not None:
