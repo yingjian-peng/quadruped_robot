@@ -21,6 +21,11 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser) -> None:
     group.add_argument("--checkpoint", type=str, default=None, help="Checkpoint file or regular expression to load.")
     group.add_argument("--run_name", type=str, default=None, help="Optional suffix for the new log directory.")
     group.add_argument("--seed", type=int, default=None, help="Random seed. Use -1 to choose one randomly.")
+    group.add_argument(
+        "--reset_optimizer",
+        action="store_true",
+        help="When resuming, load policy weights but reinitialize optimizer state from the current config.",
+    )
 
 
 def apply_local_app_defaults(args_cli: argparse.Namespace) -> None:

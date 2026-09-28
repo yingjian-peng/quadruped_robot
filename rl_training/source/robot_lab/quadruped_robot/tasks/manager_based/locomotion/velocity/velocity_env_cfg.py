@@ -501,6 +501,11 @@ class RewardsCfg:
     track_ang_vel_z_exp = RewTerm(
         func=mdp.track_ang_vel_z_exp, weight=0.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
     )
+    track_lin_vel_y_exp = RewTerm(
+        func=mdp.track_lin_vel_y_exp,
+        weight=0.0,
+        params={"command_name": "base_velocity", "std": math.sqrt(0.16), "command_threshold": 0.1},
+    )
 
     # Others
     feet_air_time = RewTerm(

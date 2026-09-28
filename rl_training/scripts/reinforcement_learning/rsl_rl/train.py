@@ -65,7 +65,9 @@ def main() -> None:
     if agent_cfg.resume:
         checkpoint = get_checkpoint_path(log_root, agent_cfg.load_run, agent_cfg.load_checkpoint)
         print(f"[INFO] Resuming from: {checkpoint}")
-        runner.load(checkpoint)
+        runner.load(checkpoint, load_optimizer=not args_cli.reset_optimizer)
+        if args_cli.reset_optimizer:
+            print("[INFO] Policy weights restored; optimizer state reset from the current configuration.")
 
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)

@@ -132,7 +132,10 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.joint_power.weight = -2e-5
         self.rewards.stand_still.weight = -2.0
         self.rewards.joint_pos_penalty.weight = -1.0
-        self.rewards.joint_mirror.weight = -0.05
+        # Keep a symmetry prior strong enough to damp asymmetric jitter, but still
+        # weak enough not to constrain the asymmetric leg loading needed for lateral
+        # motion and yaw (-0.01 let the bench action-rate metric drift up ~8%).
+        self.rewards.joint_mirror.weight = -0.025
         self.rewards.joint_mirror.params["mirror_joints"] = [
             ["FR_(hip|thigh|calf).*", "RL_(hip|thigh|calf).*"],
             ["FL_(hip|thigh|calf).*", "RR_(hip|thigh|calf).*"],
@@ -149,14 +152,15 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # Velocity-tracking rewards
         self.rewards.track_lin_vel_xy_exp.weight = 3.0
-        self.rewards.track_ang_vel_z_exp.weight = 1.5
+        self.rewards.track_lin_vel_y_exp.weight = 1.0
+        self.rewards.track_ang_vel_z_exp.weight = 1.75
 
         # Others
         # 迈步激励适当加强（0.1 -> 0.3）
         self.rewards.feet_air_time.weight = 0.3
         self.rewards.feet_air_time.params["threshold"] = 0.5
         self.rewards.feet_air_time.params["sensor_cfg"].body_names = [self.foot_link_name]
-        self.rewards.feet_air_time_variance.weight = -1.0
+        self.rewards.feet_air_time_variance.weight = -0.5
         self.rewards.feet_air_time_variance.params["sensor_cfg"].body_names = [self.foot_link_name]
         self.rewards.feet_contact.weight = 0
         self.rewards.feet_contact.params["sensor_cfg"].body_names = [self.foot_link_name]
@@ -164,7 +168,7 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.feet_contact_without_cmd.params["sensor_cfg"].body_names = [self.foot_link_name]
         self.rewards.feet_stumble.weight = 0
         self.rewards.feet_stumble.params["sensor_cfg"].body_names = [self.foot_link_name]
-        self.rewards.feet_slide.weight = -0.1
+        self.rewards.feet_slide.weight = -0.2
         self.rewards.feet_slide.params["sensor_cfg"].body_names = [self.foot_link_name]
         self.rewards.feet_slide.params["asset_cfg"].body_names = [self.foot_link_name]
         self.rewards.feet_height.weight = 0
@@ -173,8 +177,11 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.feet_height_body.weight = -5.0
         self.rewards.feet_height_body.params["target_height"] = -0.2
         self.rewards.feet_height_body.params["asset_cfg"].body_names = [self.foot_link_name]
-        # 时钟式步态奖励（移植自 Fysics_rl_mjlab）：四腿接触状态与 0.6s 周期时钟对齐
-        self.rewards.feet_gait.weight = 0.5
+        # 时钟式步态奖励（移植自 Fysics_rl_mjlab）：四腿接触状态与 0.6s 周期时钟对齐。
+        # v2：前进主导的指令拿满额时钟信号；侧移/原地转不再直接清零，而是按 non_forward_scale
+        # 打折给奖励——benchmark 显示 v1 的硬门控把 gait_clock_match 从 0.65 压到 0.57（≈stand 基线）。
+        # yaw_to_linear_scale 0.3 -> 0.15：vx 与 wz 的判定阈值放宽，减少“混合指令被判为纯偏航”的情况。
+        self.rewards.feet_gait.weight = 0.45
         self.rewards.feet_gait.func = mdp.feet_gait
         self.rewards.feet_gait.params = {
             "period": 0.6,
@@ -183,6 +190,9 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
             "command_threshold": 0.1,
             "command_name": "base_velocity",
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=[self.foot_link_name]),
+            "forward_dominant_only": True,
+            "yaw_to_linear_scale": 0.15,
+            "non_forward_scale": 0.3,
         }
         self.rewards.upward.weight = 1.0
 
@@ -200,6 +210,14 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.curriculum.command_levels_ang_vel.params["range_multiplier"] = (0.2, 1.0)
 
         # ------------------------------Commands------------------------------
-        # self.commands.base_velocity.ranges.lin_vel_x = (-1.0, 1.0)
-        # self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
-        # self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
+        # Train the same direct yaw-rate command that is used by the keyboard
+        # controller.  Heading tracking can otherwise hide poor in-place turns.
+        self.commands.base_velocity.heading_command = False
+        self.commands.base_velocity.rel_heading_envs = 0.0
+        # Reserve explicit command families. Independent uniform sampling almost
+        # never creates pure lateral or pure yaw motion, despite both being key
+        # teleoperation behaviours.
+        self.commands.base_velocity.rel_forward_envs = 0.25
+        self.commands.base_velocity.rel_lateral_envs = 0.25
+        self.commands.base_velocity.rel_yaw_envs = 0.25
+        self.commands.base_velocity.rel_mixed_envs = 0.25

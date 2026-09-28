@@ -49,6 +49,23 @@ def track_ang_vel_z_exp(
     return reward
 
 
+def track_lin_vel_y_exp(
+    env: ManagerBasedRLEnv,
+    std: float,
+    command_name: str,
+    command_threshold: float = 0.1,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Reward lateral tracking only when a lateral command is active."""
+    asset: RigidObject = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    error = torch.square(command[:, 1] - asset.data.root_lin_vel_b[:, 1])
+    reward = torch.exp(-error / std**2)
+    reward *= torch.abs(command[:, 1]) > command_threshold
+    reward *= torch.clamp(-asset.data.projected_gravity_b[:, 2], 0, 0.7) / 0.7
+    return reward
+
+
 def joint_power(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Reward joint_power"""
     # extract the used quantities (to enable type-hinting)
@@ -329,12 +346,21 @@ def feet_gait(
     command_threshold: float,
     command_name: str,
     sensor_cfg: SceneEntityCfg,
+    forward_dominant_only: bool = False,
+    yaw_to_linear_scale: float = 0.3,
+    non_forward_scale: float = 0.0,
 ) -> torch.Tensor:
     """Clock-driven gait reward: fraction of feet whose contact state matches the gait clock.
 
     Ported from Fysics_rl_mjlab (unitree_rl_mjlab) ``mdp.feet_gait``: each foot follows a phase
     clock of ``period`` seconds with a per-foot ``offset``; while a leg's phase is below
     ``threshold`` (duty factor) the foot is expected to be in stance, otherwise in swing.
+
+    With ``forward_dominant_only`` the diagonal-trot convention is only enforced at full
+    strength for forward-dominant commands, because pure side-stepping and in-place turning do
+    not have to follow the same contact schedule. ``non_forward_scale`` keeps a weakened clock
+    signal for the remaining moving commands so the gait does not become arbitrarily irregular
+    during them (``0.0`` restores the previous hard gate).
     """
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     is_contact = contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
@@ -350,6 +376,20 @@ def feet_gait(
             angular_norm = torch.abs(command[:, 2])
             total_command = linear_norm + angular_norm
             scale = (total_command > command_threshold).float()
+            if forward_dominant_only:
+                forward_dominant = (
+                    (torch.abs(command[:, 0]) > command_threshold)
+                    & (torch.abs(command[:, 0]) >= torch.abs(command[:, 1]))
+                    & (torch.abs(command[:, 0]) >= yaw_to_linear_scale * angular_norm)
+                )
+                # Full-strength clock for forward-dominant commands, partial credit otherwise.
+                # ``non_forward_scale=0.0`` reproduces the old hard gate exactly.
+                mode_scale = torch.where(
+                    forward_dominant,
+                    torch.ones_like(scale),
+                    torch.full_like(scale, non_forward_scale),
+                )
+                scale = scale * mode_scale
             reward *= scale
     return reward
 
@@ -457,21 +497,11 @@ def feet_slide(
     contacts = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > 1.0
     asset: RigidObject = env.scene[asset_cfg.name]
 
-    # feet_vel = asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :2]
-    # reward = torch.sum(feet_vel.norm(dim=-1) * contacts, dim=1)
-
-    cur_footvel_translated = asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :] - asset.data.root_lin_vel_w[
-        :, :
-    ].unsqueeze(1)
-    footvel_in_body_frame = torch.zeros(env.num_envs, len(asset_cfg.body_ids), 3, device=env.device)
-    for i in range(len(asset_cfg.body_ids)):
-        footvel_in_body_frame[:, i, :] = quat_apply_inverse(
-            asset.data.root_quat_w, cur_footvel_translated[:, i, :]
-        )
-    foot_leteral_vel = torch.sqrt(torch.sum(torch.square(footvel_in_body_frame[:, :, :2]), dim=2)).view(
-        env.num_envs, -1
-    )
-    reward = torch.sum(foot_leteral_vel * contacts, dim=1)
+    # A stance foot should be stationary in the world frame.  Its velocity relative
+    # to the base is deliberately non-zero during normal walking, so using that
+    # quantity here would penalize a valid stance phase as if it were slipping.
+    foot_vel_xy_w = asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :2]
+    reward = torch.sum(torch.linalg.vector_norm(foot_vel_xy_w, dim=-1) * contacts, dim=1)
     reward *= torch.clamp(-env.scene["robot"].data.projected_gravity_b[:, 2], 0, 0.7) / 0.7
     return reward
 

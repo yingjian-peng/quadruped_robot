@@ -153,9 +153,12 @@ TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/reinforcement_le
 #### (2) 查看指定pt效果：
 
 ```bash
-TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+cd ~/pengyingjian_external/quadruped_robot/rl_training
+
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
+  scripts/reinforcement_learning/rsl_rl/play.py \
   --task QuadrupedRobot-Velocity-Flat-Unitree-Go2-v0 \
-  --checkpoint_path logs/rsl_rl/unitree_go2_flat/2026-08-29_13-12-12/model_0.pt
+  --checkpoint_path logs/rsl_rl/unitree_go2_flat/2026-09-22_17-11-24/model_4999.pt
 ```
 
 #### (3) 快速导出 ONNX 策略

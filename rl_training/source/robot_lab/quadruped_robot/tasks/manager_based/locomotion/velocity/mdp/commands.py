@@ -42,8 +42,74 @@ class UniformThresholdVelocityCommand(mdp.UniformVelocityCommand):
     def _resample_command(self, env_ids: Sequence[int]):
         """Resample velocity commands with threshold."""
         super()._resample_command(env_ids)
+        self._sample_command_modes(env_ids)
         # set small commands to zero
         self.vel_command_b[env_ids, :2] *= (torch.norm(self.vel_command_b[env_ids, :2], dim=1) > 0.2).unsqueeze(1)
+
+    def _sample_command_modes(self, env_ids: Sequence[int]) -> None:
+        """Increase coverage of cardinal commands without changing the default distribution.
+
+        A fully independent uniform sample of ``vx``, ``vy`` and ``wz`` almost
+        never produces a pure lateral or pure yaw command.  Those are exactly
+        the commands used during teleoperation, so a configuration can reserve
+        a fraction of environments for each command family.  All fractions are
+        zero by default to preserve the behavior of existing tasks.
+        """
+        mode_fractions = (
+            self.cfg.rel_forward_envs,
+            self.cfg.rel_lateral_envs,
+            self.cfg.rel_yaw_envs,
+            self.cfg.rel_mixed_envs,
+        )
+        if not any(mode_fractions) or len(env_ids) == 0:
+            return
+        if sum(mode_fractions) > 1.0 + 1e-6:
+            raise ValueError("The sum of command-mode fractions must not exceed one.")
+
+        env_ids = torch.as_tensor(env_ids, device=self.device, dtype=torch.long)
+        commands = self.vel_command_b[env_ids]
+        # Preserve standing commands selected by the parent command generator.
+        active = torch.linalg.vector_norm(commands, dim=1) > 1e-6
+        if not active.any():
+            return
+        active_ids = env_ids[active]
+        random_values = torch.rand(active_ids.numel(), device=self.device)
+        boundaries = torch.tensor(mode_fractions, device=self.device).cumsum(dim=0)
+
+        forward_mask = random_values < boundaries[0]
+        lateral_mask = (random_values >= boundaries[0]) & (random_values < boundaries[1])
+        yaw_mask = (random_values >= boundaries[1]) & (random_values < boundaries[2])
+        mixed_mask = (random_values >= boundaries[2]) & (random_values < boundaries[3])
+
+        if forward_mask.any():
+            ids = active_ids[forward_mask]
+            self.vel_command_b[ids, 0] = self._sample_nonzero_axis(self.cfg.ranges.lin_vel_x, ids.numel())
+            self.vel_command_b[ids, 1:] = 0.0
+        if lateral_mask.any():
+            ids = active_ids[lateral_mask]
+            self.vel_command_b[ids, 0] = 0.0
+            self.vel_command_b[ids, 1] = self._sample_nonzero_axis(self.cfg.ranges.lin_vel_y, ids.numel())
+            self.vel_command_b[ids, 2] = 0.0
+        if yaw_mask.any():
+            ids = active_ids[yaw_mask]
+            self.vel_command_b[ids, :2] = 0.0
+            self.vel_command_b[ids, 2] = self._sample_nonzero_axis(self.cfg.ranges.ang_vel_z, ids.numel())
+        if mixed_mask.any():
+            ids = active_ids[mixed_mask]
+            self.vel_command_b[ids, 0] = self._sample_nonzero_axis(self.cfg.ranges.lin_vel_x, ids.numel())
+            self.vel_command_b[ids, 1] = self._sample_nonzero_axis(self.cfg.ranges.lin_vel_y, ids.numel())
+            self.vel_command_b[ids, 2] = self._sample_nonzero_axis(self.cfg.ranges.ang_vel_z, ids.numel())
+
+    def _sample_nonzero_axis(self, bounds: tuple[float, float], count: int) -> torch.Tensor:
+        """Sample an axis while avoiding the near-zero deadband used for commands."""
+        low, high = bounds
+        if low >= 0.0 or high <= 0.0:
+            return torch.empty(count, device=self.device).uniform_(low, high)
+        max_abs = max(abs(low), abs(high))
+        min_abs = min(0.25, max_abs)
+        magnitude = torch.empty(count, device=self.device).uniform_(min_abs, max_abs)
+        signs = torch.where(torch.rand(count, device=self.device) < 0.5, -1.0, 1.0)
+        return magnitude * signs
 
     def _update_command(self):
         """Update commands and apply terrain-aware restrictions in real-time.
@@ -89,3 +155,7 @@ class UniformThresholdVelocityCommandCfg(mdp.UniformVelocityCommandCfg):
     """Configuration for the uniform threshold velocity command generator."""
 
     class_type: type = UniformThresholdVelocityCommand
+    rel_forward_envs: float = 0.0
+    rel_lateral_envs: float = 0.0
+    rel_yaw_envs: float = 0.0
+    rel_mixed_envs: float = 0.0
