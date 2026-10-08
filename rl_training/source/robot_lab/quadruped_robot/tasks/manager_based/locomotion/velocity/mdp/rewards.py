@@ -411,11 +411,17 @@ def feet_contact(
 
 
 def feet_contact_without_cmd(env: ManagerBasedRLEnv, command_name: str, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Reward feet contact"""
+    """Reward sustained foot contact while the commanded velocity is zero.
+
+    ``compute_first_contact`` only stays true on the touchdown step.  Using it
+    here therefore gave no reward for an already stable four-foot stance and
+    allowed the policy to settle on only two feet.  The current-contact timer
+    represents the intended persistent contact state.
+    """
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     # compute the reward
-    contact = contact_sensor.compute_first_contact(env.step_dt)[:, sensor_cfg.body_ids]
+    contact = contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
     reward = torch.sum(contact, dim=-1).float()
     reward *= torch.linalg.norm(env.command_manager.get_command(command_name), dim=1) < 0.1
     reward *= torch.clamp(-env.scene["robot"].data.projected_gravity_b[:, 2], 0, 0.7) / 0.7
@@ -543,6 +549,16 @@ def base_height_l2(
     reward = torch.square(asset.data.root_pos_w[:, 2] - adjusted_target_height)
     reward *= torch.clamp(-env.scene["robot"].data.projected_gravity_b[:, 2], 0, 0.7) / 0.7
     return reward
+
+
+def base_height_below_target(
+    env: ManagerBasedRLEnv,
+    target_height: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Penalize low torso height without pushing a sufficiently tall robot higher."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.clamp(target_height - asset.data.root_pos_w[:, 2], min=0.0)
 
 
 def lin_vel_z_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:

@@ -29,8 +29,10 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser) -> None:
 
 
 def apply_local_app_defaults(args_cli: argparse.Namespace) -> None:
-    """Use GPU0 by default without changing Isaac Sim's render quality preset."""
+    """Use GPU0 and the validated balanced renderer preset by default."""
     args_cli.device = args_cli.device or "cuda:0"
+    if getattr(args_cli, "rendering_mode", None) is None:
+        args_cli.rendering_mode = "balanced"
     kit_args = getattr(args_cli, "kit_args", "") or ""
     default_parts = [part for part in DEFAULT_GPU0_KIT_ARGS.split() if part not in kit_args.split()]
     for part in default_parts:

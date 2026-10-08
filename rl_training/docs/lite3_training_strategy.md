@@ -13,7 +13,8 @@ q_target = q_default + action_scale × policy_action
 
 - `HipX` action scale：0.125 rad。
 - `HipY` 与 `Knee` action scale：0.25 rad。
-- Lite3 默认站姿：`HipX=0`、`HipY=-0.8`、`Knee=1.6` rad。
+- Lite3 默认站姿：`HipX=0`、`HipY=-0.67`、`Knee=1.34` rad；按 0.20 m 大腿、
+  0.21012 m 小腿和 0.022 m 足端半径估算，几何站高约 0.343 m。
 - 执行器参数和力矩/速度限幅来自 `assets/deeprobotics.py`，不应通过 reward 调参间接补偿错误的电机参数。
 
 ## 二、观测设计
@@ -26,8 +27,8 @@ actor 使用真机可获得的信息：
 - 上一帧 12 维动作；
 - 0.6 s 周期的 `sin/cos` 步态相位。
 
-actor 不使用 base 线速度和高度扫描，避免部署时依赖难以稳定估计或真机没有的输入。Rough 任务的
-critic 可额外使用 base 线速度和地形高度扫描，以提高训练效率但不扩大部署接口。
+actor 不使用 base 线速度，避免部署时依赖难以稳定估计的输入。critic 可额外使用仿真中的 base
+线速度，以提高训练效率但不扩大部署接口。平地任务不配置地形高度扫描。
 
 步态相位在零命令时置零。相位观测与接触时钟 reward 必须使用相同周期，否则会向策略提供互相
 矛盾的信号。
@@ -55,13 +56,16 @@ critic 可额外使用 base 线速度和地形高度扫描，以提高训练效�
 
 主要机制：
 
-- `feet_gait=0.45`：前进主导指令使用完整步态时钟；横移和转向使用 0.3 倍信号。
-- `feet_air_time=0.3`：鼓励形成有效迈步，而不是拖脚移动。
-- `feet_air_time_variance=-0.5`：抑制四足接触/腾空时间严重失衡。
-- `feet_slide=-0.2`：按世界系足端速度惩罚支撑脚滑移。
-- `feet_height_body=-5.0`：约束摆脚相对机身高度，Lite3 目标保持为 `-0.25 m`。
-- `joint_mirror=-0.025`：保留对称先验，同时允许横移和转向所需的非对称载荷。
-- `track_lin_vel_y_exp=1.0`、`track_ang_vel_z_exp=1.75`：确保横移和转向不被前后运动样本淹没。
+- `feet_gait=1.2`：前进、横移、混合和原地转向全部使用完整对角步态时钟。
+- `feet_air_time=0.3`：腾空阈值为 `0.22 s`，与 `0.6 s` 周期和 56% 支撑占空比匹配。
+- `feet_air_time_variance=-1.0`：抑制四足接触/腾空时间严重失衡。
+- `feet_slide=-0.45`、`feet_stumble=-0.5`：抑制支撑脚滑移以及足端横向刮碰。
+- `feet_height=-5.0`：平地训练中约束运动足世界高度接近 `0.08 m`，并关闭会影响支撑腿的 `feet_height_body`。
+- `joint_mirror=-0.08`：加强 `FL/HR` 与 `FR/HL` 两组对角腿的关节协调。
+- `base_height_l2=-12.0`：目标机身高度 `0.34 m`；另用
+  `base_height_below_target=-4.0` 直接惩罚低于 `0.32 m` 的持续下蹲。
+- `joint_pos_penalty=-0.5`、`action_rate_l2=-0.04`：约束腿部动作幅度和相邻控制周期的动作突变。
+- `track_lin_vel_y_exp=1.0`、`track_ang_vel_z_exp=2.25`：确保横移和转向不被前后运动样本淹没。
 
 这些项是一个组合。若只增强时钟而不保证横移/转向样本覆盖，策略可能获得整齐直行步态但无法完成
 遥控命令；若只增强横移而完全移除时钟，动作平滑度和步态一致性通常会恶化。
@@ -88,9 +92,11 @@ critic 可额外使用 base 线速度和地形高度扫描，以提高训练效�
 3. **先解决任务能力**：优先检查三轴速度误差、站立漂移和终止率。
 4. **再优化运动质量**：检查倾角、足端滑移、动作变化、功率和步态匹配度。
 5. **单变量或小组合消融**：每次只修改一个 reward 权重或一组强耦合参数。
-6. **Rough 训练**：Flat 达标后再验证地形课程，避免同时调试基础步态和地形适应。
-7. **Sim-to-Sim**：核对关节顺序、默认角、动作 scale、控制频率和观测归一化。
-8. **Sim-to-Real**：先悬空、再支架、最后落地；逐级提高动作幅度和速度范围。
+6. **Sim-to-Sim**：核对关节顺序、默认角、动作 scale、控制频率和观测归一化。
+7. **Sim-to-Real**：先悬空、再支架、最后落地；逐级提高动作幅度和速度范围。
+
+旧版 `model_4999.pt` 使用了较矮的默认关节姿态。默认角同时决定策略的观测零点和动作目标零点，
+因此新配置需要从头训练；不要将旧 checkpoint 直接作为新配置的效果对照或恢复训练。
 
 ## 七、首条 Lite3 基线后要确定的门槛
 
@@ -99,8 +105,9 @@ critic 可额外使用 base 线速度和地形高度扫描，以提高训练效�
 - locomotion：`mae_vx`、`mae_vy`、`mae_wz`；
 - stand：`actual_vx/vy/wz` 与关节功率；
 - stability：`tilt_rad`、`vertical_acc_abs`、终止率；
+- posture：`base_height_m`，重点检查运动命令是否从约 `0.26 m` 向 `0.32–0.34 m` 提升；
 - contact：`stance_slip_mps` 与四足 duty factor；
-- smoothness：`action_rate_l2`；
-- gait：`gait_clock_match`。
+- smoothness：`action_rate_l2` 与 `joint_deviation_mean_abs_rad`；
+- gait：`gait_clock_match`、对角腿同步和摆动相触地率。
 
 门槛应基于多次 trial 的均值和方差，并以真机安全约束为最终依据。

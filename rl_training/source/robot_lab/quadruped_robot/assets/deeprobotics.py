@@ -2,14 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DCMotorCfg
+from isaaclab.actuators import DelayedPDActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
 from quadruped_robot.assets import ROBOT_MODELS_DIR
 
 DEEPROBOTICS_LITE3_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        # Use the vendor-provided Isaac Sim asset directly.
         usd_path=f"{ROBOT_MODELS_DIR}/deeprobotics/Lite3/Lite3_usd/Lite3.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -22,37 +21,41 @@ DEEPROBOTICS_LITE3_CFG = ArticulationCfg(
             max_depenetration_velocity=1.0,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=1
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.35),
+        pos=(0.0, 0.0, 0.375),
         joint_pos={
             ".*HipX_joint": 0.0,
-            ".*HipY_joint": -0.8,
-            ".*Knee_joint": 1.6,
+            ".*HipY_joint": -0.65,
+            ".*Knee_joint": 1.3,
         },
         joint_vel={".*": 0.0},
     ),
-    soft_joint_pos_limit_factor=0.9,
+    soft_joint_pos_limit_factor=0.99,
     actuators={
-        "Hip": DCMotorCfg(
+        "Hip": DelayedPDActuatorCfg(
             joint_names_expr=[".*_Hip[X,Y]_joint"],
             effort_limit=24.0,
-            saturation_effort=24.0,
             velocity_limit=26.2,
             stiffness=30.0,
-            damping=0.5,
+            damping=1.0,
             friction=0.0,
+            armature=0.0,
+            min_delay=0,
+            max_delay=1,
         ),
-        "Knee": DCMotorCfg(
+        "Knee": DelayedPDActuatorCfg(
             joint_names_expr=[".*_Knee_joint"],
             effort_limit=36.0,
-            saturation_effort=36.0,
             velocity_limit=17.3,
             stiffness=30.0,
-            damping=0.5,
+            damping=1.0,
             friction=0.0,
+            armature=0.0,
+            min_delay=0,
+            max_delay=1,
         ),
     },
 )

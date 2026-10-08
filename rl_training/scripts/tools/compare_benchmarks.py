@@ -9,8 +9,8 @@ Examples
 Compare two explicit runs::
 
     python3 scripts/tools/compare_benchmarks.py \
-        logs/rsl_rl/deeprobotics_lite3_flat/<baseline-run> \
-        logs/rsl_rl/deeprobotics_lite3_flat/<candidate-run>
+        logs/rsl_rl/deeprobotics_lite3_flat/baseline_run \
+        logs/rsl_rl/deeprobotics_lite3_flat/candidate_run
 
 Compare every benchmarked run under the Lite3 flat log root and export a CSV::
 
@@ -32,14 +32,21 @@ METRICS: tuple[tuple[str, str], ...] = (
     ("stance_slip_mps", "foot slip [m/s]"),
     ("tilt_rad", "body tilt [rad]"),
     ("action_rate_l2", "action rate l2"),
+    ("joint_deviation_mean_abs_rad", "joint deviation [rad]"),
     ("joint_power_w", "joint power [W]"),
     ("gait_clock_match", "gait clock match"),
+    ("diag_sync_fl_hr", "FL/HR sync"),
+    ("diag_sync_fr_hl", "FR/HL sync"),
+    ("diag_antiphase", "diagonal anti-phase"),
+    ("swing_height_m", "swing height [m]"),
+    ("swing_scuff_rate", "swing scuff rate"),
     ("vertical_acc_abs", "vertical acc"),
     ("world_displacement_mps", "displacement [m/s]"),
 )
 
 CATEGORIES = ("stand", "forward", "forward_yaw", "lateral", "lateral_yaw", "yaw")
 LOCOMOTION = tuple(category for category in CATEGORIES if category != "stand")
+
 
 class RunSummary:
     """Category-level rows of one ``summary.csv`` file."""
@@ -81,7 +88,10 @@ def resolve_summary(path: Path) -> tuple[str, Path] | None:
 
 def discover(root: Path) -> list[tuple[str, Path]]:
     """All benchmarked runs under ``root``, oldest first."""
-    found = [(summary.parent.parent.name, summary) for summary in root.glob("*/benchmark/summary.csv")]
+    found = [
+        (summary.parent.parent.name, summary)
+        for summary in root.glob("*/benchmark/summary.csv")
+    ]
     return sorted(found, key=lambda item: item[1].stat().st_mtime)
 
 
@@ -93,42 +103,80 @@ def format_value(value: float, delta: float) -> str:
     return f"{value:.3f} ({delta:+.0%})"
 
 
-def print_metric_table(metric: str, label: str, runs: list[RunSummary], baseline: int) -> None:
+def print_metric_table(
+    metric: str, label: str, runs: list[RunSummary], baseline: int
+) -> None:
     print(f"\n== {metric} — {label} ==")
     width = max(len("locomotion avg"), max(len(category) for category in CATEGORIES))
     header = " " * (width + 2) + "".join(f"{run.label[:26]:>28}" for run in runs)
     print(header)
     for category in list(CATEGORIES) + ["locomotion avg"]:
         values = [
-            run.average(LOCOMOTION, metric) if category == "locomotion avg" else run.value(category, metric)
+            run.average(LOCOMOTION, metric)
+            if category == "locomotion avg"
+            else run.value(category, metric)
             for run in runs
         ]
         cells = ""
         for index, value in enumerate(values):
             delta = float("nan")
-            if index != baseline and values[baseline] == values[baseline] and values[baseline] != 0.0:
+            if (
+                index != baseline
+                and values[baseline] == values[baseline]
+                and values[baseline] != 0.0
+            ):
                 delta = (value - values[baseline]) / abs(values[baseline])
             cells += f"{format_value(value, delta):>28}"
         print(f"{category:<{width}}{cells}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("paths", nargs="*", type=Path, help="Run / benchmark directories or summary.csv files.")
-    parser.add_argument("--root", type=Path, default=None, help="Discover all benchmarked runs under this log root.")
-    parser.add_argument("--metrics", nargs="*", default=None, help="Subset of metric keys to print.")
-    parser.add_argument("--baseline", type=int, default=0, help="Index of the run used to compute deltas.")
-    parser.add_argument("--csv", type=Path, default=None, help="Write a long-form comparison table to this CSV.")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "paths",
+        nargs="*",
+        type=Path,
+        help="Run / benchmark directories or summary.csv files.",
+    )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Discover all benchmarked runs under this log root.",
+    )
+    parser.add_argument(
+        "--metrics", nargs="*", default=None, help="Subset of metric keys to print."
+    )
+    parser.add_argument(
+        "--baseline",
+        type=int,
+        default=0,
+        help="Index of the run used to compute deltas.",
+    )
+    parser.add_argument(
+        "--csv",
+        type=Path,
+        default=None,
+        help="Write a long-form comparison table to this CSV.",
+    )
     args = parser.parse_args()
 
     discovered = discover(args.root) if args.root else []
-    requested = [item for path in args.paths if (item := resolve_summary(path)) is not None]
+    requested = [
+        item for path in args.paths if (item := resolve_summary(path)) is not None
+    ]
     resolved = discovered + [item for item in requested if item not in discovered]
     if not resolved:
         parser.error("No benchmark summary found; pass run directories or --root.")
 
     runs = [RunSummary(label, path) for label, path in resolved]
-    metrics = [(key, label) for key, label in METRICS if args.metrics is None or key in args.metrics]
+    metrics = [
+        (key, label)
+        for key, label in METRICS
+        if args.metrics is None or key in args.metrics
+    ]
 
     print("Benchmark comparison")
     for run in runs:
@@ -148,7 +196,9 @@ def main() -> None:
                             else run.value(category, metric)
                         )
                         if value == value:
-                            writer.writerow([run.label, category, metric, f"{value:.6f}"])
+                            writer.writerow(
+                                [run.label, category, metric, f"{value:.6f}"]
+                            )
         print(f"\n[compare_benchmarks] wrote {args.csv}")
 
 

@@ -7,12 +7,12 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 
 
 @configclass
-class DeeproboticsLite3RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class DeeproboticsLite3FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 20000
+    max_iterations = 5000
     empirical_normalization = False
     save_interval = 100
-    experiment_name = "deeprobotics_lite3_rough"
+    experiment_name = "deeprobotics_lite3_flat"
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
         actor_hidden_dims=[512, 256, 128],
@@ -33,12 +33,3 @@ class DeeproboticsLite3RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
-
-
-@configclass
-class DeeproboticsLite3FlatPPORunnerCfg(DeeproboticsLite3RoughPPORunnerCfg):
-    def __post_init__(self):
-        super().__post_init__()
-
-        self.max_iterations = 5000
-        self.experiment_name = "deeprobotics_lite3_flat"

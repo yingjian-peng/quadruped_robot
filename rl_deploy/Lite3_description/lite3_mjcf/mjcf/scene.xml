@@ -1,0 +1,209 @@
+<mujoco model="scene">
+  <asset>
+    <mesh name="mesh_1" file="../meshes/01.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_2" file="../meshes/02.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_3" file="../meshes/03.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_4" file="../meshes/04.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_5" file="../meshes/05.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_6" file="../meshes/06.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_7" file="../meshes/07.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_8" file="../meshes/08.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_9" file="../meshes/09.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_10" file="../meshes/10.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_11" file="../meshes/11.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_12" file="../meshes/12.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_13" file="../meshes/13.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_14" file="../meshes/14.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_15" file="../meshes/15.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_16" file="../meshes/16.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_17" file="../meshes/17.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_18" file="../meshes/18.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_19" file="../meshes/19.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_20" file="../meshes/20.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_21" file="../meshes/21.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_22" file="../meshes/22.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_23" file="../meshes/23.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_24" file="../meshes/24.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_25" file="../meshes/25.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_26" file="../meshes/26.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_27" file="../meshes/27.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_28" file="../meshes/28.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_29" file="../meshes/29.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_30" file="../meshes/30.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_31" file="../meshes/31.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_32" file="../meshes/32.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_33" file="../meshes/33.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_34" file="../meshes/34.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_35" file="../meshes/35.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_36" file="../meshes/36.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_37" file="../meshes/37.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_38" file="../meshes/38.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_39" file="../meshes/39.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_40" file="../meshes/40.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_41" file="../meshes/41.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_42" file="../meshes/42.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_43" file="../meshes/43.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_44" file="../meshes/44.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_45" file="../meshes/45.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_46" file="../meshes/46.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_47" file="../meshes/47.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_48" file="../meshes/48.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_49" file="../meshes/49.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_50" file="../meshes/50.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_51" file="../meshes/51.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_52" file="../meshes/52.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_53" file="../meshes/53.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_54" file="../meshes/54.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_55" file="../meshes/55.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_56" file="../meshes/56.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_57" file="../meshes/57.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_58" file="../meshes/58.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_59" file="../meshes/59.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_60" file="../meshes/60.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_61" file="../meshes/61.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_62" file="../meshes/62.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_63" file="../meshes/63.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_64" file="../meshes/64.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_65" file="../meshes/65.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_66" file="../meshes/66.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_67" file="../meshes/67.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_68" file="../meshes/68.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_69" file="../meshes/69.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_70" file="../meshes/70.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_71" file="../meshes/71.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_72" file="../meshes/72.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_73" file="../meshes/73.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_74" file="../meshes/74.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_75" file="../meshes/75.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_76" file="../meshes/76.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_77" file="../meshes/77.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_78" file="../meshes/78.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_79" file="../meshes/79.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_80" file="../meshes/80.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_81" file="../meshes/81.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_82" file="../meshes/82.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_83" file="../meshes/83.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_84" file="../meshes/84.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_85" file="../meshes/85.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_86" file="../meshes/86.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_87" file="../meshes/87.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_88" file="../meshes/88.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_89" file="../meshes/89.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_90" file="../meshes/90.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_91" file="../meshes/91.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_92" file="../meshes/92.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_93" file="../meshes/93.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_94" file="../meshes/94.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_95" file="../meshes/95.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_96" file="../meshes/96.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_97" file="../meshes/97.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_98" file="../meshes/98.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="mesh_99" file="../meshes/99.stl" scale="0.001 0.001 0.001"/>
+  </asset>
+
+  <worldbody>
+    <light diffuse=".5 .5 .5" pos="0 0 3" dir="0 0 -1"/>
+    <body name="main_body" pos="-33 108 0">
+      <freejoint/>
+      <geom type="mesh" mesh="mesh_1"/>
+      <geom type="mesh" mesh="mesh_2"/>
+      <geom type="mesh" mesh="mesh_3"/>
+      <geom type="mesh" mesh="mesh_4"/>
+      <geom type="mesh" mesh="mesh_5"/>
+      <geom type="mesh" mesh="mesh_6"/>
+      <geom type="mesh" mesh="mesh_7"/>
+      <geom type="mesh" mesh="mesh_8"/>
+      <geom type="mesh" mesh="mesh_9"/>
+      <geom type="mesh" mesh="mesh_10"/>
+      <geom type="mesh" mesh="mesh_11"/>
+      <geom type="mesh" mesh="mesh_12"/>
+      <geom type="mesh" mesh="mesh_13"/>
+      <geom type="mesh" mesh="mesh_14"/>
+      <geom type="mesh" mesh="mesh_15"/>
+      <geom type="mesh" mesh="mesh_16"/>
+      <geom type="mesh" mesh="mesh_17"/>
+      <geom type="mesh" mesh="mesh_18"/>
+      <geom type="mesh" mesh="mesh_19"/>
+      <geom type="mesh" mesh="mesh_20"/>
+      <geom type="mesh" mesh="mesh_21"/>
+      <geom type="mesh" mesh="mesh_22"/>
+      <geom type="mesh" mesh="mesh_23"/>
+      <geom type="mesh" mesh="mesh_24"/>
+      <geom type="mesh" mesh="mesh_25"/>
+      <geom type="mesh" mesh="mesh_26"/>
+      <geom type="mesh" mesh="mesh_27"/>
+      <geom type="mesh" mesh="mesh_28"/>
+      <geom type="mesh" mesh="mesh_29"/>
+      <geom type="mesh" mesh="mesh_30"/>
+      <geom type="mesh" mesh="mesh_31"/>
+      <geom type="mesh" mesh="mesh_32"/>
+      <geom type="mesh" mesh="mesh_33"/>
+      <geom type="mesh" mesh="mesh_34"/>
+      <geom type="mesh" mesh="mesh_35"/>
+      <geom type="mesh" mesh="mesh_36"/>
+      <geom type="mesh" mesh="mesh_37"/>
+      <geom type="mesh" mesh="mesh_38"/>
+      <geom type="mesh" mesh="mesh_39"/>
+      <geom type="mesh" mesh="mesh_40"/>
+      <geom type="mesh" mesh="mesh_41"/>
+      <geom type="mesh" mesh="mesh_42"/>
+      <geom type="mesh" mesh="mesh_43"/>
+      <geom type="mesh" mesh="mesh_44"/>
+      <geom type="mesh" mesh="mesh_45"/>
+      <geom type="mesh" mesh="mesh_46"/>
+      <geom type="mesh" mesh="mesh_47"/>
+      <geom type="mesh" mesh="mesh_48"/>
+      <geom type="mesh" mesh="mesh_49"/>
+      <geom type="mesh" mesh="mesh_50"/>
+      <geom type="mesh" mesh="mesh_51"/>
+      <geom type="mesh" mesh="mesh_52"/>
+      <geom type="mesh" mesh="mesh_53"/>
+      <geom type="mesh" mesh="mesh_54"/>
+      <geom type="mesh" mesh="mesh_55"/>
+      <geom type="mesh" mesh="mesh_56"/>
+      <geom type="mesh" mesh="mesh_57"/>
+      <geom type="mesh" mesh="mesh_58"/>
+      <geom type="mesh" mesh="mesh_59"/>
+      <geom type="mesh" mesh="mesh_60"/>
+      <geom type="mesh" mesh="mesh_61"/>
+      <geom type="mesh" mesh="mesh_62"/>
+      <geom type="mesh" mesh="mesh_63"/>
+      <geom type="mesh" mesh="mesh_64"/>
+      <geom type="mesh" mesh="mesh_65"/>
+      <geom type="mesh" mesh="mesh_66"/>
+      <geom type="mesh" mesh="mesh_67"/>
+      <geom type="mesh" mesh="mesh_68"/>
+      <geom type="mesh" mesh="mesh_69"/>
+      <geom type="mesh" mesh="mesh_70"/>
+      <geom type="mesh" mesh="mesh_71"/>
+      <geom type="mesh" mesh="mesh_72"/>
+      <geom type="mesh" mesh="mesh_73"/>
+      <geom type="mesh" mesh="mesh_74"/>
+      <geom type="mesh" mesh="mesh_75"/>
+      <geom type="mesh" mesh="mesh_76"/>
+      <geom type="mesh" mesh="mesh_77"/>
+      <geom type="mesh" mesh="mesh_78"/>
+      <geom type="mesh" mesh="mesh_79"/>
+      <geom type="mesh" mesh="mesh_80"/>
+      <geom type="mesh" mesh="mesh_81"/>
+      <geom type="mesh" mesh="mesh_82"/>
+      <geom type="mesh" mesh="mesh_83"/>
+      <geom type="mesh" mesh="mesh_84"/>
+      <geom type="mesh" mesh="mesh_85"/>
+      <geom type="mesh" mesh="mesh_86"/>
+      <geom type="mesh" mesh="mesh_87"/>
+      <geom type="mesh" mesh="mesh_88"/>
+      <geom type="mesh" mesh="mesh_89"/>
+      <geom type="mesh" mesh="mesh_90"/>
+      <geom type="mesh" mesh="mesh_91"/>
+      <geom type="mesh" mesh="mesh_92"/>
+      <geom type="mesh" mesh="mesh_93"/>
+      <geom type="mesh" mesh="mesh_94"/>
+      <geom type="mesh" mesh="mesh_95"/>
+      <geom type="mesh" mesh="mesh_96"/>
+      <geom type="mesh" mesh="mesh_97"/>
+      <geom type="mesh" mesh="mesh_98"/>
+      <geom type="mesh" mesh="mesh_99"/>
+    </body>
+  </worldbody>
+</mujoco>

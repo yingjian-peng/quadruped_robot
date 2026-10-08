@@ -2,7 +2,9 @@
 
 import argparse
 import os
+import re
 import sys
+from pathlib import Path
 
 from isaaclab.app import AppLauncher
 
@@ -11,9 +13,19 @@ sys.path.append(os.path.dirname(__file__))
 import cli_args
 
 
-parser = argparse.ArgumentParser(description="Play or export an Isaac Lab RSL-RL checkpoint.")
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+
+parser = argparse.ArgumentParser(
+    description="Play or export an Isaac Lab RSL-RL checkpoint."
+)
 parser.add_argument("--task", required=True, help="Registered Gymnasium task ID.")
-parser.add_argument("--checkpoint_path", type=str, default=None, help="Path to a trained .pt checkpoint.")
+parser.add_argument(
+    "--checkpoint_path",
+    type=str,
+    default=None,
+    help="Checkpoint file or run directory; defaults to the newest checkpoint under logs/rsl_rl.",
+)
 parser.add_argument(
     "--export_onnx",
     action="store_true",
@@ -68,29 +80,60 @@ def configure_keyboard_command(env_cfg) -> None:
 
 def configure_viewer(env_cfg) -> None:
     env_cfg.viewer.env_index = 0
-    env_cfg.viewer.eye = (3.0, 3.0, 2.0)
-    env_cfg.viewer.lookat = (0.0, 0.0, 0.5)
+    # Keep the Lite3 large enough in the viewport for visual gait inspection.
+    # These values follow the validated FJKSRobot-02 visual inspection setup.
+    env_cfg.viewer.eye = (1.6, -1.6, 0.95)
+    env_cfg.viewer.lookat = (0.0, 0.0, 0.28)
     env_cfg.viewer.origin_type = "world"
+
+
+def resolve_input_path(value: str) -> Path:
+    """Resolve an input from either the caller's cwd or the rl_training root."""
+    path = Path(value).expanduser()
+    if path.is_absolute():
+        return path.resolve()
+    cwd_path = (Path.cwd() / path).resolve()
+    if cwd_path.exists():
+        return cwd_path
+    return (PROJECT_ROOT / path).resolve()
+
+
+def checkpoint_iteration(path: Path) -> int:
+    match = re.fullmatch(r"model_(\d+)\.pt", path.name)
+    return int(match.group(1)) if match else -1
+
+
+def checkpoints_in(directory: Path) -> list[Path]:
+    checkpoints = list(directory.glob("model_*.pt"))
+    return sorted(
+        checkpoints, key=lambda path: (checkpoint_iteration(path), path.stat().st_mtime)
+    )
 
 
 def resolve_checkpoints(agent_cfg, num_checkpoints: int = 1) -> list[str]:
     if args_cli.checkpoint_path is not None:
-        checkpoint = os.path.abspath(args_cli.checkpoint_path)
-        if not os.path.isfile(checkpoint):
-            raise FileNotFoundError(f"Checkpoint file does not exist: {checkpoint}")
-        return [checkpoint]
+        checkpoint_path = resolve_input_path(args_cli.checkpoint_path)
+        if checkpoint_path.is_dir():
+            checkpoints = checkpoints_in(checkpoint_path)
+            if not checkpoints:
+                raise FileNotFoundError(
+                    f"No model_*.pt checkpoint found in: {checkpoint_path}"
+                )
+            return [str(path) for path in checkpoints[-num_checkpoints:]]
+        if not checkpoint_path.is_file():
+            raise FileNotFoundError(
+                f"Checkpoint file does not exist: {checkpoint_path}"
+            )
+        return [str(checkpoint_path)]
 
-    log_root = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
-    checkpoints = [
-        os.path.abspath(path)
-        for root, _, files in os.walk(log_root)
-        for path in [os.path.join(root, file) for file in files]
-        if os.path.basename(path).startswith("model_") and path.endswith(".pt")
-    ]
+    log_root = PROJECT_ROOT / "logs" / "rsl_rl" / agent_cfg.experiment_name
+    checkpoints = sorted(
+        log_root.rglob("model_*.pt"),
+        key=lambda path: (path.stat().st_mtime, checkpoint_iteration(path)),
+    )
     if not checkpoints:
         raise FileNotFoundError(f"No model_*.pt checkpoint found under: {log_root}")
-    checkpoints.sort(key=os.path.getmtime)
-    return checkpoints[-num_checkpoints:]
+    return [str(path.resolve()) for path in checkpoints[-num_checkpoints:]]
 
 
 def resolve_checkpoint(agent_cfg) -> str:
@@ -105,9 +148,18 @@ def export_policy_to_onnx(runner, checkpoint: str) -> str:
     else:
         from isaaclab_rl.rsl_rl import export_policy_as_onnx
 
-        policy_nn = runner.alg.policy if hasattr(runner.alg, "policy") else runner.alg.actor_critic
+        policy_nn = (
+            runner.alg.policy
+            if hasattr(runner.alg, "policy")
+            else runner.alg.actor_critic
+        )
         normalizer = getattr(policy_nn, "actor_obs_normalizer", None)
-        export_policy_as_onnx(policy=policy_nn, normalizer=normalizer, path=export_model_dir, filename=filename)
+        export_policy_as_onnx(
+            policy=policy_nn,
+            normalizer=normalizer,
+            path=export_model_dir,
+            filename=filename,
+        )
     return os.path.join(export_model_dir, filename)
 
 
@@ -118,7 +170,9 @@ def make_keyboard_controller(env):
 
     command_term = env.unwrapped.command_manager.get_term("base_velocity")
     keyboard = Se2Keyboard(
-        Se2KeyboardCfg(v_x_sensitivity=0.8, v_y_sensitivity=0.4, omega_z_sensitivity=1.0)
+        Se2KeyboardCfg(
+            v_x_sensitivity=0.8, v_y_sensitivity=0.4, omega_z_sensitivity=1.0
+        )
     )
     keyboard._INPUT_KEY_MAPPING.update(
         {
@@ -132,7 +186,9 @@ def make_keyboard_controller(env):
     )
 
     def apply_keyboard_command() -> None:
-        command = torch.as_tensor(keyboard.advance(), device=env.unwrapped.device, dtype=torch.float32)
+        command = torch.as_tensor(
+            keyboard.advance(), device=env.unwrapped.device, dtype=torch.float32
+        )
         command_term.vel_command_b[:] = command
 
     return apply_keyboard_command
@@ -161,13 +217,15 @@ def main() -> None:
         env_cfg.commands.base_velocity.debug_vis = False
     configure_viewer(env_cfg)
 
-    checkpoints = (
-        resolve_checkpoints(agent_cfg, num_checkpoints=5) if args_cli.export_onnx else [resolve_checkpoint(agent_cfg)]
-    )
+    checkpoints = [resolve_checkpoint(agent_cfg)]
 
-    env = RslRlVecEnvWrapper(gym.make(args_cli.task, cfg=env_cfg), clip_actions=agent_cfg.clip_actions)
+    env = RslRlVecEnvWrapper(
+        gym.make(args_cli.task, cfg=env_cfg), clip_actions=agent_cfg.clip_actions
+    )
     try:
-        runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+        runner = OnPolicyRunner(
+            env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device
+        )
 
         if args_cli.export_onnx:
             for checkpoint in checkpoints:
@@ -182,7 +240,9 @@ def main() -> None:
         runner.load(checkpoint)
         policy = runner.get_inference_policy(device=env.unwrapped.device)
         apply_keyboard_command = make_keyboard_controller(env)
-        print("[INFO] Keyboard UI mode: use mouse for view, hold W/S/A/D/Q/E or arrow/Z/X keys, press L to stop.")
+        print(
+            "[INFO] Keyboard UI mode: use mouse for view, hold W/S/A/D/Q/E or arrow/Z/X keys, press L to stop."
+        )
 
         obs = env.get_observations()
         obs = obs[0] if isinstance(obs, tuple) else obs
