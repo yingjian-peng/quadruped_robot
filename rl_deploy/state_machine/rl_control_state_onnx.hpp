@@ -100,8 +100,8 @@ public:
     virtual void OnEnter() {
         state_run_cnt_ = -1;
         start_flag_ = true;
-        run_policy_thread_ = std::thread(std::bind(&RLControlStateONNX::PolicyRunner, this));
         policy_ptr_->OnEnter();
+        run_policy_thread_ = std::thread(std::bind(&RLControlStateONNX::PolicyRunner, this));
         StateBase::msfb_.UpdateCurrentState(RobotMotionState::RLControlMode);
         uc_ptr_->SetMotionStateFeedback(StateBase::msfb_);
     };

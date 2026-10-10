@@ -17,7 +17,10 @@
 #include "basic_function.hpp"
 
 #include <iostream>
+#include <cmath>
+#include <stdexcept>
 #include <unordered_map>
+#include <utility>
 
 // ---------------------------------------------------------------------------
 // OrtImpl — all onnxruntime objects live here, invisible to callers
@@ -28,6 +31,8 @@ struct Lite3TestPolicyRunnerONNX::OrtImpl {
     Ort::MemoryInfo memory_info;
     Ort::Session session;
 
+    std::string input_name;
+    std::string output_name;
     std::vector<const char*> input_names;
     std::vector<const char*> output_names;
 
@@ -41,14 +46,16 @@ struct Lite3TestPolicyRunnerONNX::OrtImpl {
 // ---------------------------------------------------------------------------
 // Constructor / Destructor
 // ---------------------------------------------------------------------------
-Lite3TestPolicyRunnerONNX::Lite3TestPolicyRunnerONNX(std::string policy_name)
+Lite3TestPolicyRunnerONNX::Lite3TestPolicyRunnerONNX(std::string policy_name, std::string model_path)
     : PolicyRunnerBase(policy_name),
       ort_(std::make_unique<OrtImpl>()),
       gravity_direction(0., 0., -1.),
       joint_pos_rl(12),
-      joint_vel_rl(12) {
+      joint_vel_rl(12),
+      last_action(VecXf::Zero(act_dim_)),
+      action(VecXf::Zero(act_dim_)) {
 
-    model_path_ = GetAbsPath() + "/../policy/ppo/policy.onnx";
+    model_path_ = model_path.empty() ? GetAbsPath() + "/../policy/ppo/policy.onnx" : std::move(model_path);
     std::cout << "[ONNX INIT] Loading model: " << model_path_ << std::endl;
 
     ort_->session_options.SetIntraOpNumThreads(1);
@@ -56,8 +63,25 @@ Lite3TestPolicyRunnerONNX::Lite3TestPolicyRunnerONNX(std::string policy_name)
     ort_->session = Ort::Session(ort_->env, model_path_.c_str(), ort_->session_options);
     std::cout << "[ONNX INIT] Model loaded successfully.\n";
 
-    ort_->input_names  = {"obs"};
-    ort_->output_names = {"actions"};
+    Ort::AllocatorWithDefaultOptions allocator;
+    auto input_name = ort_->session.GetInputNameAllocated(0, allocator);
+    auto output_name = ort_->session.GetOutputNameAllocated(0, allocator);
+    ort_->input_name = input_name.get();
+    ort_->output_name = output_name.get();
+    ort_->input_names = {ort_->input_name.c_str()};
+    ort_->output_names = {ort_->output_name.c_str()};
+
+    const auto input_shape = ort_->session.GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
+    const auto output_shape = ort_->session.GetOutputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
+    if (input_shape.size() != 2 || output_shape.size() != 2 || input_shape.back() <= 0 ||
+        output_shape.back() != act_dim_) {
+        throw std::runtime_error("Lite3 ONNX policy must have [batch, obs] input and 12 actions.");
+    }
+    obs_dim_ = static_cast<int>(input_shape.back());
+    if (obs_dim_ != 45 && obs_dim_ != 47) {
+        throw std::runtime_error("Unsupported Lite3 policy observation size " + std::to_string(obs_dim_) +
+                                 "; expected 45 (legacy) or 47 (with gait phase).");
+    }
 
     robot_order = {
         "FL_HipX_joint", "FL_HipY_joint", "FL_Knee_joint",
@@ -77,21 +101,21 @@ Lite3TestPolicyRunnerONNX::Lite3TestPolicyRunnerONNX(std::string policy_name)
                           0.125f, 0.25f, 0.25f};
 
     dof_pos_default_policy.setZero(12);
-    dof_pos_default_policy << 0.0000, -0.6500, 1.3000,
-                                  0.0000, -0.6500, 1.3000,
-                                  0.0000, -0.6500, 1.3000,
-                                  0.0000, -0.6500, 1.3000;
+    dof_pos_default_policy << 0.0000, -0.6700, 1.3400,
+                                  0.0000, -0.6700, 1.3400,
+                                  0.0000, -0.6700, 1.3400,
+                                  0.0000, -0.6700, 1.3400;
 
     dof_pos_default_robot.setZero(12);
-    dof_pos_default_robot << 0.0000, -0.6500, 1.3000,
-                                  0.0000, -0.6500, 1.3000,
-                                  0.0000, -0.6500, 1.3000,
-                                  0.0000, -0.6500, 1.3000;
+    dof_pos_default_robot << 0.0000, -0.6700, 1.3400,
+                                  0.0000, -0.6700, 1.3400,
+                                  0.0000, -0.6700, 1.3400,
+                                  0.0000, -0.6700, 1.3400;
 
 
     kp_ = 30. * VecXf::Ones(12);
-    kd_ =  1. * VecXf::Ones(12);
-    max_cmd_vel_ << 0.8, 0.8, 0.8;
+    kd_ =  0.5 * VecXf::Ones(12);
+    max_cmd_vel_ << 1.0, 1.0, 1.0;
 
     tmp_action = VecXf(act_dim_);
     ra.goal_joint_pos = VecXf::Zero(act_dim_);
@@ -109,7 +133,7 @@ Lite3TestPolicyRunnerONNX::Lite3TestPolicyRunnerONNX(std::string policy_name)
 
     // Warm-up / sanity check
     for (int i = 0; i < 2; ++i) {
-        VecXf dummy_input = VecXf::Ones(obs_dim_);
+        VecXf dummy_input = VecXf::Zero(obs_dim_);
         std::array<int64_t, 2> input_shape{1, obs_dim_};
 
         Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
@@ -124,7 +148,7 @@ Lite3TestPolicyRunnerONNX::Lite3TestPolicyRunnerONNX(std::string policy_name)
         std::cout << policy_name_ << " ONNX policy network test success" << std::endl;
     }
 
-    decimation_ = 12;
+    decimation_ = policy_decimation_;
 }
 
 // The destructor must be defined in the .cpp where OrtImpl is complete.
@@ -142,6 +166,8 @@ void Lite3TestPolicyRunnerONNX::DisplayPolicyInfo() {
 void Lite3TestPolicyRunnerONNX::OnEnter() {
     run_cnt_ = 0;
     current_obs_.setZero(obs_dim_);
+    last_action.setZero(act_dim_);
+    action.setZero(act_dim_);
     std::cout << "[ONNX ENTER] PolicyRunner entered: " << policy_name_ << std::endl;
 }
 
@@ -157,12 +183,28 @@ RobotAction Lite3TestPolicyRunnerONNX::GetRobotAction(const RobotBasicState& ro)
     joint_pos_rl -= dof_pos_default_policy;
 
     current_obs_.setZero(obs_dim_);
-    current_obs_ << base_omega,
-                    projected_gravity,
-                    cmd_vel,
-                    joint_pos_rl,
-                    joint_vel_rl,
-                    last_action;
+    int obs_index = 0;
+    current_obs_.segment<3>(obs_index) = base_omega;
+    obs_index += 3;
+    current_obs_.segment<3>(obs_index) = projected_gravity;
+    obs_index += 3;
+    current_obs_.segment<3>(obs_index) = cmd_vel;
+    obs_index += 3;
+    current_obs_.segment(obs_index, act_dim_) = joint_pos_rl;
+    obs_index += act_dim_;
+    current_obs_.segment(obs_index, act_dim_) = joint_vel_rl;
+    obs_index += act_dim_;
+    current_obs_.segment(obs_index, act_dim_) = last_action;
+    obs_index += act_dim_;
+    if (obs_dim_ == 47) {
+        constexpr float two_pi = 6.2831853071795864769f;
+        const float command_norm = cmd_vel.norm();
+        if (command_norm >= 0.1f) {
+            const float phase = std::fmod(static_cast<float>(run_cnt_) * policy_dt_, gait_period_) / gait_period_;
+            current_obs_(obs_index) = std::sin(two_pi * phase);
+            current_obs_(obs_index + 1) = std::cos(two_pi * phase);
+        }
+    }
 
     std::array<int64_t, 2> input_shape{1, obs_dim_};
 
@@ -180,7 +222,11 @@ RobotAction Lite3TestPolicyRunnerONNX::GetRobotAction(const RobotBasicState& ro)
         ort_->output_names.data(), 1);
 
     float* action_data = output_tensors[0].GetTensorMutableData<float>();
-    Eigen::Map<Eigen::MatrixXf> act(action_data, act_dim_, 1);
+    const auto output_shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
+    if (output_shape.empty() || output_shape.back() != act_dim_) {
+        throw std::runtime_error("Lite3 ONNX policy returned an output other than 12 actions.");
+    }
+    Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, 1>> act(action_data, act_dim_);
     action      = VecXf(act);
     last_action = action;
 

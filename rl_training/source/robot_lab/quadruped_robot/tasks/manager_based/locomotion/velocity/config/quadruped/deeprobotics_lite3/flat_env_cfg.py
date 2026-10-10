@@ -3,12 +3,16 @@
 
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
 import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, ISAAC_NUCLEUS_DIR
 
 import quadruped_robot.tasks.manager_based.locomotion.velocity.mdp as mdp
-from quadruped_robot.tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityEnvCfg
+from quadruped_robot.tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
+    LocomotionVelocityEnvCfg,
+    TerminationsCfg,
+)
 
 ##
 # 预定义配置
@@ -20,10 +24,26 @@ from quadruped_robot.assets.deeprobotics import DEEPROBOTICS_LITE3_CFG  # isort:
 
 """DeepRobotics Lite3 平地速度跟踪环境配置。"""
 @configclass
+class DeeproboticsLite3TerminationsCfg(TerminationsCfg):
+    """Lite3 falls terminate; shank contacts remain a reward penalty."""
+
+    fallen_height = DoneTerm(
+        func=mdp.root_height_below_minimum,
+        params={"minimum_height": 0.18, "asset_cfg": SceneEntityCfg("robot")},
+    )
+    fallen_orientation = DoneTerm(
+        func=mdp.bad_orientation,
+        params={"limit_angle": 0.8, "asset_cfg": SceneEntityCfg("robot")},
+    )
+
+
+@configclass
 class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
+    terminations: DeeproboticsLite3TerminationsCfg = DeeproboticsLite3TerminationsCfg()
     base_link_name = "TORSO"
     foot_link_name = ".*_FOOT"
     foot_names = ["FL_FOOT", "FR_FOOT", "HL_FOOT", "HR_FOOT"]
+    shank_names = ["FL_SHANK", "FR_SHANK", "HL_SHANK", "HR_SHANK"]
     # fmt: off
     joint_names = [
         "FL_HipX_joint", "FL_HipY_joint", "FL_Knee_joint",
@@ -84,23 +104,23 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
         self.actions.joint_pos.joint_names = self.joint_names
 
         # ------------------------------事件------------------------------
-        # 初始状态保持在较容易恢复的范围内，让 PPO 学习运动控制，避免大量采样浪费在难以恢复的倒地状态上。
+        # 平地基准阶段只做小幅重置扰动。稳定后再单独扩大初始状态和动力学随机化。
         self.events.randomize_reset_base.params = {
             "pose_range": {
-                "x": (-0.3, 0.3),
-                "y": (-0.3, 0.3),
-                "z": (0.0, 0.1),
-                "roll": (-0.3, 0.3),
-                "pitch": (-0.3, 0.3),
+                "x": (-0.05, 0.05),
+                "y": (-0.05, 0.05),
+                "z": (-0.02, 0.02),
+                "roll": (-0.05, 0.05),
+                "pitch": (-0.05, 0.05),
                 "yaw": (-3.14, 3.14),
             },
             "velocity_range": {
-                "x": (-0.33, 0.33),
-                "y": (-0.33, 0.33),
-                "z": (-0.33, 0.33),
-                "roll": (-0.33, 0.33),
-                "pitch": (-0.33, 0.33),
-                "yaw": (-0.33, 0.33),
+                "x": (-0.05, 0.05),
+                "y": (-0.05, 0.05),
+                "z": (-0.02, 0.02),
+                "roll": (-0.05, 0.05),
+                "pitch": (-0.05, 0.05),
+                "yaw": (-0.05, 0.05),
             },
         }
         self.events.randomize_rigid_body_mass_base.params["asset_cfg"].body_names = [self.base_link_name]
@@ -108,22 +128,23 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
         self.events.randomize_com_positions.params["asset_cfg"].body_names = [self.base_link_name]
         self.events.randomize_apply_external_force_torque.params["asset_cfg"].body_names = [self.base_link_name]
 
-        # 适度的域随机化用于训练平地基准策略，后续再根据系统辨识结果进行 Sim-to-Real 调整。
-        self.events.randomize_rigid_body_material.params["static_friction_range"] = (0.42, 0.88)
-        self.events.randomize_rigid_body_material.params["dynamic_friction_range"] = (0.38, 0.72)
-        self.events.randomize_rigid_body_material.params["restitution_range"] = (0.08, 0.42)
-        self.events.randomize_rigid_body_mass_base.params["mass_distribution_params"] = (-0.33, 2.33)
-        self.events.randomize_rigid_body_mass_others.params["mass_distribution_params"] = (0.8, 1.2)
+        # 稳定性基准阶段：摩擦接近部署 MJCF 的 1.0，先不加入明显弹跳。
+        self.events.randomize_rigid_body_material.params["static_friction_range"] = (0.95, 1.0)
+        self.events.randomize_rigid_body_material.params["dynamic_friction_range"] = (0.95, 1.0)
+        self.events.randomize_rigid_body_material.params["restitution_range"] = (0.0, 0.02)
+        # 机身标称质量约 5.61 kg；基准阶段限制在约 +/-0.1 kg。
+        self.events.randomize_rigid_body_mass_base.params["mass_distribution_params"] = (-0.1, 0.1)
+        self.events.randomize_rigid_body_mass_others.params["mass_distribution_params"] = (0.98, 1.02)
         self.events.randomize_com_positions.params["com_range"] = {
-            "x": (-0.033, 0.033),
-            "y": (-0.033, 0.033),
-            "z": (-0.033, 0.033),
+            "x": (-0.005, 0.005),
+            "y": (-0.005, 0.005),
+            "z": (-0.005, 0.005),
         }
-        self.events.randomize_actuator_gains.params["stiffness_distribution_params"] = (0.75, 1.75)
-        self.events.randomize_actuator_gains.params["damping_distribution_params"] = (0.75, 1.75)
-        self.events.randomize_apply_external_force_torque.params["force_range"] = (-6.7, 6.7)
-        self.events.randomize_apply_external_force_torque.params["torque_range"] = (-6.7, 6.7)
-        self.events.randomize_push_robot.params["velocity_range"] = {"x": (-0.33, 0.33), "y": (-0.33, 0.33)}
+        self.events.randomize_actuator_gains.params["stiffness_distribution_params"] = (0.95, 1.05)
+        self.events.randomize_actuator_gains.params["damping_distribution_params"] = (0.95, 1.05)
+        self.events.randomize_apply_external_force_torque.params["force_range"] = (-1.0, 1.0)
+        self.events.randomize_apply_external_force_torque.params["torque_range"] = (-0.5, 0.5)
+        self.events.randomize_push_robot.params["velocity_range"] = {"x": (-0.1, 0.1), "y": (-0.1, 0.1)}
 
         # ------------------------------奖励------------------------------
         # 通用奖励
@@ -132,14 +153,14 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
         # 机身惩罚
         self.rewards.lin_vel_z_l2.weight = -2.0
         self.rewards.ang_vel_xy_l2.weight = -0.05
-        # 平地目标高度略高于默认站姿；平方项限制整体高度偏差，单侧项专门抑制运动时的下蹲。
-        # 不采用官方 rough 配置的 0.55 m，避免为了追逐过高目标破坏现有步态。
+        # 0.375 m 是出生根高；策略运行高度目标单独设为 0.32 m。
         self.rewards.flat_orientation_l2.weight = -5.0
-        self.rewards.base_height_l2.weight = -20.0
-        self.rewards.base_height_l2.params["target_height"] = 0.35
+        self.rewards.base_height_l2.weight = -12.0
+        self.rewards.base_height_l2.params["target_height"] = 0.32
         self.rewards.base_height_l2.params["asset_cfg"].body_names = [self.base_link_name]
-        self.rewards.base_height_below_target.weight = -8.0
-        self.rewards.base_height_below_target.params["target_height"] = 0.34
+        # 高度 L2 已在 0.32 m 两侧提供恢复力；仅在明显低于目标时保留轻量保护项。
+        self.rewards.base_height_below_target.weight = -2.0
+        self.rewards.base_height_below_target.params["target_height"] = 0.29
         self.rewards.body_lin_acc_l2.weight = 0
         self.rewards.body_lin_acc_l2.params["asset_cfg"].body_names = [self.base_link_name]
 
@@ -149,11 +170,11 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
         self.rewards.joint_acc_l2.weight = -2.5e-7
         self.rewards.joint_pos_limits.weight = -5.0
         self.rewards.joint_vel_limits.weight = 0
-        self.rewards.joint_power.weight = -2e-5
-        self.rewards.stand_still.weight = -2.0
-        # 原配置在收到运动指令后，关节姿态惩罚会从站立时的 5 倍降为 1 倍。
-        # 适度提高运动时的权重，同时使站立时的有效权重基本保持不变（原为 -2.5，现为 -2.4）。
-        self.rewards.joint_pos_penalty.weight = -0.8
+        # 力矩平方项已抑制过度用力；关闭与其目标高度重叠的功率惩罚。
+        self.rewards.joint_power.weight = 0.0
+        # 默认角约束稍微放松：仍保留低命令时的 joint_pos_penalty，去掉重复的 stand_still 项。
+        self.rewards.stand_still.weight = 0.0
+        self.rewards.joint_pos_penalty.weight = -0.5
         self.rewards.joint_pos_penalty.params["stand_still_scale"] = 3.0
         self.rewards.joint_mirror.weight = -0.08
         self.rewards.joint_mirror.params["mirror_joints"] = [
@@ -165,8 +186,9 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
         self.rewards.action_rate_l2.weight = -0.04
 
         # 接触传感器相关奖励
-        self.rewards.undesired_contacts.weight = -1.0
-        self.rewards.undesired_contacts.params["sensor_cfg"].body_names = [f"^(?!.*{self.foot_link_name}).*"]
+        # 小腿接触不作为跌倒终止，但明确计入接触惩罚；躯干倾倒/过低由独立终止条件处理。
+        self.rewards.undesired_contacts.weight = -3.0
+        self.rewards.undesired_contacts.params["sensor_cfg"].body_names = self.shank_names
         self.rewards.contact_forces.weight = -1.5e-4
         self.rewards.contact_forces.params["sensor_cfg"].body_names = [self.foot_link_name]
 
@@ -180,7 +202,8 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
         self.rewards.feet_air_time.weight = 0.3
         self.rewards.feet_air_time.params["threshold"] = 0.22
         self.rewards.feet_air_time.params["sensor_cfg"].body_names = [self.foot_link_name]
-        self.rewards.feet_air_time_variance.weight = -1.0
+        # 由显式的 trot 时钟规定各足接触相位，关闭泛化的腾空/支撑时间方差项。
+        self.rewards.feet_air_time_variance.weight = 0.0
         self.rewards.feet_air_time_variance.params["sensor_cfg"].body_names = [self.foot_link_name]
         self.rewards.feet_contact.weight = 0
         self.rewards.feet_contact.params["sensor_cfg"].body_names = [self.foot_link_name]
@@ -191,9 +214,14 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
         self.rewards.feet_slide.weight = -0.45
         self.rewards.feet_slide.params["sensor_cfg"].body_names = [self.foot_link_name]
         self.rewards.feet_slide.params["asset_cfg"].body_names = [self.foot_link_name]
-        # 在平地上，世界坐标系下的足端速度会自然地让此项主要作用于摆动或滑动的足端。
-        # 这比约束足端相对机身的高度更合适；后者会使支撑脚也被抬起并造成刮地。
-        self.rewards.feet_height.weight = -5.0
+        # 仅约束支撑脚不要收进机身中线；摆动脚和更宽的支撑姿态不受约束。
+        self.rewards.feet_stance_width.weight = -2.0
+        self.rewards.feet_stance_width.params["asset_cfg"].body_names = self.foot_names
+        self.rewards.feet_stance_width.params["asset_cfg"].preserve_order = True
+        self.rewards.feet_stance_width.params["sensor_cfg"].body_names = self.foot_names
+        self.rewards.feet_stance_width.params["sensor_cfg"].preserve_order = True
+        # 以较温和的高度代价保留摆脚离地提示；节拍由 feet_gait 负责。
+        self.rewards.feet_height.weight = -2.0
         self.rewards.feet_height.params["target_height"] = 0.08
         self.rewards.feet_height.params["asset_cfg"].body_names = [self.foot_link_name]
         self.rewards.feet_height_body.weight = 0
@@ -201,7 +229,7 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
         self.rewards.feet_height_body.params["asset_cfg"].body_names = [self.foot_link_name]
         # 前进、横移、混合和原地转向均采用同一对角小跑步态：
         # FL/HR 同步，FR/HL 同步，两组相差半个周期。
-        self.rewards.feet_gait.weight = 1.2
+        self.rewards.feet_gait.weight = 1.5
         self.rewards.feet_gait.func = mdp.feet_gait
         self.rewards.feet_gait.params = {
             "period": 0.6,
@@ -214,9 +242,11 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
             "yaw_to_linear_scale": 0.15,
             "non_forward_scale": 1.0,
         }
-        self.rewards.upward.weight = 1.0
+        # upward 与 flat_orientation_l2 重复；其实现与函数说明不一致，当前禁用该额外姿态奖励。
+        self.rewards.upward.weight = 0.0
 
         # ------------------------------终止条件------------------------------
+        # 小腿触地单独惩罚，不复用会把任何小腿触地直接判成失败的 illegal_contact。
         self.terminations.illegal_contact = None
 
         # ------------------------------课程学习------------------------------

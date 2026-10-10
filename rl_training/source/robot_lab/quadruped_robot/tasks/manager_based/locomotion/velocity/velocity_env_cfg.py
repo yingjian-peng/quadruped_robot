@@ -559,6 +559,16 @@ class RewardsCfg:
         },
     )
 
+    feet_stance_width = RewTerm(
+        func=mdp.feet_stance_width,
+        weight=0.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=""),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=""),
+            "min_lateral_distance": 0.13,
+        },
+    )
+
     feet_height = RewTerm(
         func=mdp.feet_height,
         weight=0.0,

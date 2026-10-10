@@ -155,6 +155,17 @@ target_include_directories(run_policy PUBLIC
 )
 target_link_libraries(run_policy onnxruntime)
 
+option(BUILD_POLICY_TESTS "Build ONNX policy runner smoke tests" OFF)
+if(BUILD_POLICY_TESTS)
+  enable_testing()
+  add_executable(lite3_policy_runner_smoke tests/lite3_policy_runner_smoke.cpp)
+  target_link_libraries(lite3_policy_runner_smoke run_policy)
+  add_test(
+    NAME lite3_policy_runner_smoke
+    COMMAND lite3_policy_runner_smoke ${PROJECT_SOURCE_DIR}/policy/ppo/policy.onnx
+  )
+endif()
+
 # ========== 收集源文件 ==========
 file(GLOB_RECURSE STATE_MACHINE_SRC "state_machine/*.c*")
 
@@ -181,20 +192,14 @@ if (BUILD_SIM)
   endif()
 endif()
 
-if (BUILD_SIM)
-  link_directories(${THIRD_PARTY}/Lite3_MotionSDK/lib)
-  target_link_libraries(rl_deploy
-      ${PROJECT_SOURCE_DIR}/third_party/Lite3_MotionSDK/lib/libdeeprobotics_legged_sdk_x86_64.so
-      pthread
-      rt
-  )
+if (BUILD_PLATFORM STREQUAL "arm")
+  set(LITE3_MOTION_SDK_LIBRARY
+      ${PROJECT_SOURCE_DIR}/third_party/Lite3_MotionSDK/lib/libdeeprobotics_legged_sdk_aarch64.so)
 else()
-  target_link_libraries(rl_deploy
-      ${PROJECT_SOURCE_DIR}/third_party/Lite3_MotionSDK/lib/libdeeprobotics_legged_sdk_aarch64.so
-      pthread
-      rt
-  )
+  set(LITE3_MOTION_SDK_LIBRARY
+      ${PROJECT_SOURCE_DIR}/third_party/Lite3_MotionSDK/lib/libdeeprobotics_legged_sdk_x86_64.so)
 endif()
+target_link_libraries(rl_deploy ${LITE3_MOTION_SDK_LIBRARY} pthread rt)
 
 if (BUILD_SIM)
     target_compile_definitions(rl_deploy PRIVATE BUILD_SIMULATION)

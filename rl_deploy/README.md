@@ -121,26 +121,36 @@ make -j
 
 ## 模型转换
 
-运行RL训练出的策略文件需要链接onnxruntime库，而onnxruntime支持的模型为.onnx格式，需要手动转换.pt模型为.onnx格式。
-
-可以通过运行policy文件夹中的pt2onnx.py文件将.pt模型转化为.onnx模型。注意观察程序输出对两个模型一致性的比较。
-
-首先配置和验证程序运行环境
+使用训练工程的 `play.py` 导出指定 checkpoint，导出时会保留训练策略的观测结构和归一化参数：
 
 ```bash
-pip install torch numpy onnx onnxruntime
-
-python3 -c 'import torch, numpy, onnx, onnxruntime; print(" All modules OK")'
+cd /home/robot/pengyingjian_external/quadruped_robot/rl_training
+TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
+  scripts/reinforcement_learning/rsl_rl/play.py \
+  --task QuadrupedRobot-Velocity-Flat-Deeprobotics-Lite3-v0 \
+  --checkpoint_path logs/rsl_rl/deeprobotics_lite3_flat/<run>/model_<iteration>.pt \
+  --export_onnx --device cpu
 ```
 
-然后运行程序
+ONNX 会写入 checkpoint 同级的 `exported/` 目录。当前 Lite3 策略输入为 47 维，其中最后两维是周期 0.6 s 的正弦/余弦步态相位；部署 runner 也兼容旧的 45 维策略。runner 会读取 ONNX 的输入形状，拒绝不支持的维度，并将控制更新周期设为 20 ms（50 Hz），与 Isaac Lab 的 `dt=5 ms × decimation=4` 对齐。
+
+### ONNX runner 冒烟测试
+
+构建并测试仓库中的默认 ONNX 策略：
 
 ```bash
-cd your/path/to/LITE3_RL_DEPOLY/policy/
-
-python pt2onnx.py
+cd /home/robot/pengyingjian_external/quadruped_robot/rl_deploy
+cmake -S . -B /tmp/lite3_deploy_build -DBUILD_SIM=OFF -DBUILD_PLATFORM=x86 -DBUILD_POLICY_TESTS=ON
+cmake --build /tmp/lite3_deploy_build --target lite3_policy_runner_smoke -j2
+cd /tmp/lite3_deploy_build && ctest --output-on-failure
 ```
-就可以在当前文件夹看到对应的.onnx模型文件了
+
+验证某个训练 checkpoint 导出的 ONNX（包括当前 47 维策略）：
+
+```bash
+/tmp/lite3_deploy_build/lite3_policy_runner_smoke \
+  /path/to/run/exported/model_<iteration>.onnx
+```
 
 
 ## 各模块介绍

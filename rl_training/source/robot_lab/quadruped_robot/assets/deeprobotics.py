@@ -25,6 +25,7 @@ DEEPROBOTICS_LITE3_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
+        # Match the DeepRobotics Lite3 asset configuration.
         pos=(0.0, 0.0, 0.375),
         joint_pos={
             ".*HipX_joint": 0.0,
@@ -35,6 +36,7 @@ DEEPROBOTICS_LITE3_CFG = ArticulationCfg(
     ),
     soft_joint_pos_limit_factor=0.99,
     actuators={
+        # Keep the official Lite3 actuator model and gains as the simulation baseline.
         "Hip": DelayedPDActuatorCfg(
             joint_names_expr=[".*_Hip[X,Y]_joint"],
             effort_limit=24.0,

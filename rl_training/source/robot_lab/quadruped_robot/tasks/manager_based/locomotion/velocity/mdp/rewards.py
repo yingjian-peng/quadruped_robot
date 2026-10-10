@@ -512,6 +512,39 @@ def feet_slide(
     return reward
 
 
+def feet_stance_width(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg,
+    sensor_cfg: SceneEntityCfg,
+    min_lateral_distance: float = 0.13,
+) -> torch.Tensor:
+    """Penalize stance feet that move too close to the robot centerline.
+
+    The one-sided body-frame bound discourages a tucked-in support stance while
+    leaving wider stances and swing-foot placement unconstrained.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    foot_ids = asset_cfg.body_ids
+    # Contact in any sensor history sample marks the foot as being in stance.
+    contacts = (
+        contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :]
+        .norm(dim=-1)
+        .max(dim=1)[0]
+        > 1.0
+    )
+    foot_offsets_w = asset.data.body_pos_w[:, foot_ids, :] - asset.data.root_pos_w[:, None, :]
+    foot_quat_w = asset.data.root_quat_w[:, None, :].expand(-1, foot_offsets_w.shape[1], -1)
+    foot_offsets_b = quat_apply_inverse(foot_quat_w, foot_offsets_w)
+    # body_names are configured in FL, FR, HL, HR order: left feet have +y.
+    side_sign = torch.tensor([1.0, -1.0, 1.0, -1.0], device=env.device)
+    signed_lateral = foot_offsets_b[..., 1] * side_sign
+    shortfall = torch.clamp(min_lateral_distance - signed_lateral, min=0.0)
+    reward = torch.sum(shortfall * contacts, dim=1)
+    reward *= torch.clamp(-asset.data.projected_gravity_b[:, 2], 0, 0.7) / 0.7
+    return reward
+
+
 def upward(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize z-axis base linear velocity using L2 squared kernel."""
     # extract the used quantities (to enable type-hinting)

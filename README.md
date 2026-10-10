@@ -15,7 +15,7 @@ QuadrupedRobot-Velocity-Flat-Deeprobotics-Lite3-v0
 ```
 
 该任务在本地生成的平面网格上训练基础站立、前后、横移和转向能力，不使用复杂地形、高度扫描或
-地形难度课程。策略输出 12 个关节的位置目标增量，底层由 Lite3 的延迟 PD 执行器配置转换为关节力矩。
+地形难度课程。策略输出 12 个关节的位置目标增量，底层由 Lite3 的 `DCMotorCfg` 执行器配置转换为关节力矩。
 
 ## 二、参考环境
 
@@ -91,16 +91,20 @@ TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
 
 ### 2. 训练
 
-Flat 是工程唯一的训练任务。新版 Lite3 默认站姿、延迟 PD 执行器及高度奖励配置从头训练；
-当前 v4 训练使用 2048 个并行环境、5000 次迭代：
+Flat 是工程唯一的训练任务。当前 v3.1 候选保留 v3 的默认站姿和 `DCMotorCfg` 执行器，
+仅提高非足端接触惩罚。以下是已完成的 v3 checkpoint 续训 300 次迭代命令：
 
 ```bash
 TERM=xterm /home/robot/isaacsim/IsaacLab/isaaclab.sh -p \
   scripts/reinforcement_learning/rsl_rl/train.py \
   --task QuadrupedRobot-Velocity-Flat-Deeprobotics-Lite3-v0 \
-  --headless --num_envs 2048 --max_iterations 5000 \
-  --run_name lite3_flat_new_actuator_v4
+  --headless --num_envs 2048 --max_iterations 300 \
+  --resume --load_run 2026-10-05_23-26-13_lite3_flat_posture_v3 \
+  --checkpoint model_4999.pt --reset_optimizer --resume_full_command_range \
+  --run_name lite3_flat_shank_penalty_v3_1_ft300
 ```
+
+评测显示站立偏航有所改善，但仍靠小腿承重，运动机身高度略降。详细数据见 [Lite3 迭代记录](rl_training/docs/lite3_iteration_log.md)。
 
 训练输出位于：
 

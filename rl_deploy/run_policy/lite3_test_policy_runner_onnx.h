@@ -23,7 +23,7 @@ using namespace types;
 
 class Lite3TestPolicyRunnerONNX : public PolicyRunnerBase {
 public:
-    explicit Lite3TestPolicyRunnerONNX(std::string policy_name);
+    explicit Lite3TestPolicyRunnerONNX(std::string policy_name, std::string model_path = "");
     ~Lite3TestPolicyRunnerONNX();
 
     void DisplayPolicyInfo() override;
@@ -38,8 +38,11 @@ private:
 
     std::string model_path_;
 
-    const int obs_dim_ = 45;
+    int obs_dim_ = 0;
     const int act_dim_ = 12;
+    const int policy_decimation_ = 20;  // 1 kHz state loop -> 50 Hz, matching Isaac Lab (0.005 * 4).
+    const float policy_dt_ = 0.02f;
+    const float gait_period_ = 0.6f;
 
     VecXf current_obs_;
     VecXf joint_pos_rl;
