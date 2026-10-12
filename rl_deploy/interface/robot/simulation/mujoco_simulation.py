@@ -14,7 +14,7 @@ init(autoreset=True)
 
 MODEL_NAME = "lite3"
 # 场景保留在 Lite3_description；场景中的机器人从仓库根目录 robot_models 加载。
-XML_PATH = "../../../Lite3_description/lite3_mjcf/mjcf/Lite3_stair.xml"
+XML_PATH = "../../../Lite3_description/lite3_mjcf/mjcf/Lite3_flat.xml"
 LOCAL_PORT = 20001
 CTRL_IP = "127.0.0.1"
 CTRL_PORT = 30010
@@ -23,7 +23,9 @@ DT = 0.001
 RENDER_INTERVAL = 10
 
 URDF_INIT = {
-    "lite3": np.array([0, -1.35453, 2.54948] * 4, dtype=np.float32)
+    # Match the policy/deployment nominal pose. The previous crouched angles
+    # were paired with the MJCF's 1 m body height and had no ground support.
+    "lite3": np.array([0, -0.67, 1.34] * 4, dtype=np.float32)
 }
 
 class MuJoCoSimulation:
@@ -49,6 +51,8 @@ class MuJoCoSimulation:
         self.model = mujoco.MjModel.from_xml_path(xml_full)
         self.model.opt.timestep = DT
         self.data = mujoco.MjData(self.model)
+        if mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "ground") < 0:
+            raise RuntimeError(f"MuJoCo scene must contain a visible ground plane: {xml_full}")
 
         # Robot DOF list
         self.actuator_ids = [a for a in range(self.model.nu)]  # 0..11
@@ -64,6 +68,13 @@ class MuJoCoSimulation:
         self.vel_cmd = np.zeros_like(self.kp_cmd)
         self.tau_ff = np.zeros_like(self.kp_cmd)
         self.input_tq = np.zeros_like(self.kp_cmd)
+
+        # Hold the grounded nominal pose while the C++ controller is starting.
+        # The deployment policy replaces these startup commands as soon as it
+        # receives its first state packet.
+        self.kp_cmd.fill(100.0)
+        self.kd_cmd.fill(2.5)
+        self.pos_cmd[:, 0] = URDF_INIT[model_key]
 
         # IMU
         self.last_base_linvel = np.zeros((3, 1), np.float64)
@@ -82,14 +93,36 @@ class MuJoCoSimulation:
         self.viewer.cam.distance = 3.8
         self.viewer.cam.azimuth = 135
         self.viewer.cam.elevation = -18
-        self.viewer.cam.lookat[:] = np.array([0.4, 0.0, 0.45])
+        self.viewer.cam.lookat[:] = np.array([0.0, 0.0, 0.25])
 
     def _set_initial_pose(self, key: str):
-        """Set joint positions to match PyBullet initial angles."""
+        """Start in the deployed nominal joint pose with all feet on the plane."""
         qpos0 = self.data.qpos.copy()
         qpos0[7:7+self.dof_num] = URDF_INIT[key]
         self.data.qpos[:] = qpos0
         mujoco.mj_forward(self.model, self.data)
+
+        foot_body_ids = [
+            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, f"{leg}_FOOT")
+            for leg in ("FL", "FR", "HL", "HR")
+        ]
+        if any(body_id < 0 for body_id in foot_body_ids):
+            raise RuntimeError("MuJoCo model is missing one or more Lite3 foot bodies")
+        foot_geom_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_GEOM, "FL_FOOT_collision"
+        )
+        if foot_geom_id < 0:
+            raise RuntimeError("MuJoCo model is missing FL_FOOT_collision")
+
+        # Translate the free base vertically so the lowest foot sphere is just
+        # touching z=0. The MJCF's authored 1 m root height is for visualization,
+        # not a grounded initial state for this policy.
+        lowest_foot_center_z = min(float(self.data.xpos[body_id, 2]) for body_id in foot_body_ids)
+        sole_radius = float(self.model.geom_size[foot_geom_id, 0])
+        self.data.qpos[2] += sole_radius - lowest_foot_center_z
+        mujoco.mj_forward(self.model, self.data)
+        print(f"[INFO] Grounded nominal start: base_z={self.data.qpos[2]:.4f} m, "
+              f"joint pose={URDF_INIT[key].tolist()[:3]} x 4")
 
     def print_debug_info(self):
         """Consolidated function to print debug information with colors and aligned formatting."""
@@ -110,6 +143,7 @@ class MuJoCoSimulation:
         body_acc = self.data.sensordata[16:19]
 
         print(f"{Fore.CYAN}=== [Debug Info] ==={Style.RESET_ALL}")
+        print(f"{Fore.GREEN}[Base] Position  :{Style.RESET_ALL} {format_array(self.data.qpos[:3])}")
         print(f"{Fore.GREEN}[IMU] RPY        :{Style.RESET_ALL} {format_array(rpy.flatten())}")
         print(f"{Fore.GREEN}[IMU] Omega      :{Style.RESET_ALL} {format_array(angvel_b.flatten())}")
         print(f"{Fore.GREEN}[IMU] Acc_body   :{Style.RESET_ALL} {format_array(body_acc.flatten())}")

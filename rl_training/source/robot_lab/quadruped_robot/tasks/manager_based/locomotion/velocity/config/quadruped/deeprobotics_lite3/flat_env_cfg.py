@@ -155,12 +155,12 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
         self.rewards.ang_vel_xy_l2.weight = -0.05
         # 0.375 m 是出生根高；策略运行高度目标单独设为 0.32 m。
         self.rewards.flat_orientation_l2.weight = -5.0
-        self.rewards.base_height_l2.weight = -12.0
+        self.rewards.base_height_l2.weight = -20.0
         self.rewards.base_height_l2.params["target_height"] = 0.32
         self.rewards.base_height_l2.params["asset_cfg"].body_names = [self.base_link_name]
-        # 高度 L2 已在 0.32 m 两侧提供恢复力；仅在明显低于目标时保留轻量保护项。
-        self.rewards.base_height_below_target.weight = -2.0
-        self.rewards.base_height_below_target.params["target_height"] = 0.29
+        # E 组只增强低高度保护；阈值保持 0.32 m，宽度项沿用 D 组。
+        self.rewards.base_height_below_target.weight = -4.0
+        self.rewards.base_height_below_target.params["target_height"] = 0.32
         self.rewards.body_lin_acc_l2.weight = 0
         self.rewards.body_lin_acc_l2.params["asset_cfg"].body_names = [self.base_link_name]
 
@@ -176,10 +176,11 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
         self.rewards.stand_still.weight = 0.0
         self.rewards.joint_pos_penalty.weight = -0.5
         self.rewards.joint_pos_penalty.params["stand_still_scale"] = 3.0
+        # 沿用 nohipx 候选：仅保留对角腿 HipY/Knee 的节拍姿态约束。
         self.rewards.joint_mirror.weight = -0.08
         self.rewards.joint_mirror.params["mirror_joints"] = [
-            ["FL_(HipX|HipY|Knee).*", "HR_(HipX|HipY|Knee).*"],
-            ["FR_(HipX|HipY|Knee).*", "HL_(HipX|HipY|Knee).*"],
+            ["FL_(HipY|Knee).*", "HR_(HipY|Knee).*"],
+            ["FR_(HipY|Knee).*", "HL_(HipY|Knee).*"],
         ]
 
         # 动作惩罚
@@ -214,8 +215,9 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
         self.rewards.feet_slide.weight = -0.45
         self.rewards.feet_slide.params["sensor_cfg"].body_names = [self.foot_link_name]
         self.rewards.feet_slide.params["asset_cfg"].body_names = [self.foot_link_name]
-        # 仅约束支撑脚不要收进机身中线；摆动脚和更宽的支撑姿态不受约束。
-        self.rewards.feet_stance_width.weight = -2.0
+        # 无改动续训对照：四足使用 nohipx 父策略的统一最小横距。
+        self.rewards.feet_stance_width.weight = -1.0
+        self.rewards.feet_stance_width.params["min_lateral_distance"] = 0.13
         self.rewards.feet_stance_width.params["asset_cfg"].body_names = self.foot_names
         self.rewards.feet_stance_width.params["asset_cfg"].preserve_order = True
         self.rewards.feet_stance_width.params["sensor_cfg"].body_names = self.foot_names
@@ -264,5 +266,8 @@ class DeeproboticsLite3FlatEnvCfg(LocomotionVelocityEnvCfg):
         self.commands.base_velocity.rel_lateral_envs = 0.25
         self.commands.base_velocity.rel_yaw_envs = 0.25
         self.commands.base_velocity.rel_mixed_envs = 0.25
+        # 恢复 E 组对称采样，使本轮相对 E 组只改变 joint_mirror 奖励。
+        self.commands.base_velocity.negative_x_command_probability = 0.5
+        self.commands.base_velocity.negative_x_command_probability_mixed = 0.5
 
         self.disable_zero_weight_rewards()

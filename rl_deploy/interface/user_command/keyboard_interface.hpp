@@ -68,18 +68,22 @@ public:
         tcgetattr(STDIN_FILENO, &oldt);
         newt = oldt;
         newt.c_lflag &= ~(ICANON | ECHO);
+        // Let read() wake periodically so command timeouts expire even when
+        // the operator does not press another key.
+        newt.c_cc[VMIN] = 0;
+        newt.c_cc[VTIME] = 1;
         tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
-        char input;
+        char input = 0;
         double forward_time_record = GetCurrentTimeStamp();
         double side_time_record = GetCurrentTimeStamp();
         double turnning_time_record = GetCurrentTimeStamp();
         std::cout << "Start Keyboard Listening" << std::endl;
+        std::cout << "Keyboard commands expire after 300 ms without another key." << std::endl;
         while (start_thread_flag_) {
-            // std::cout << "time: " << current_time << " " << forward_time_record << std::endl;
-            std::cout << "[Keyboard] Running..." << std::endl;
-            if(read(STDIN_FILENO, &input, 1) != -1){
-                double current_time = GetCurrentTimeStamp();
+            const ssize_t bytes_read = read(STDIN_FILENO, &input, 1);
+            const double current_time = GetCurrentTimeStamp();
+            if (bytes_read == 1) {
                 // std::lock_guard<std::mutex> lock(mtx_);  // 修改 usr_cmd_ 和读取 msfb_
 
                 std::cout << "input: " << input << std::endl;
@@ -133,22 +137,20 @@ public:
                         }
 
 
-                        if(current_time - forward_time_record > 300.) usr_cmd_.forward_vel_scale = 0;
-                        if(current_time - side_time_record > 300.) usr_cmd_.side_vel_scale = 0;
-                        if(current_time - turnning_time_record > 300.) usr_cmd_.turnning_vel_scale = 0;
-
                         ClipNumber(usr_cmd_.forward_vel_scale, -1., 1.);
                         ClipNumber(usr_cmd_.side_vel_scale, -1., 1.);
                         ClipNumber(usr_cmd_.turnning_vel_scale, -1., 1.);
                     break;
                     default:
-                        break;
+                    break;
                 }
             }
-            // std::this_thread::sleep_for(std::chrono::microseconds(100));
+
+            if (current_time - forward_time_record > 300.) usr_cmd_.forward_vel_scale = 0;
+            if (current_time - side_time_record > 300.) usr_cmd_.side_vel_scale = 0;
+            if (current_time - turnning_time_record > 300.) usr_cmd_.turnning_vel_scale = 0;
         }
         tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     }
 
 };
-

@@ -152,6 +152,24 @@ cd /tmp/lite3_deploy_build && ctest --output-on-failure
   /path/to/run/exported/model_<iteration>.onnx
 ```
 
+### 在 MuJoCo 中运行指定训练策略
+
+将 ONNX 复制到 `rl_deploy/policy/ppo/` 下的版本化文件名，然后通过 `LITE3_POLICY_ONNX` 指定。未设置该变量时仍使用原来的 `policy.onnx`。
+
+```bash
+# 终端1：先启动部署控制器并指定策略，从 grounded nominal pose 自动进入 RL
+cd /home/robot/pengyingjian_external/quadruped_robot
+LITE3_SIM_AUTO_RL=1 \
+LITE3_POLICY_ONNX="$PWD/rl_deploy/policy/ppo/lite3_nohipx_model_3745.onnx" \
+  /tmp/lite3_sim_build/rl_deploy
+
+# 终端2：启动 MuJoCo 平地 GUI
+cd /home/robot/pengyingjian_external/quadruped_robot/rl_deploy/interface/robot/simulation
+python3 mujoco_simulation.py
+```
+
+控制器会从策略默认关节角的平地支撑姿态直接进入 RL；`w/s` 前进后退，`a/d` 左右平移，`q/e` 原地转向。松开并等待 0.3 秒会将速度命令清零。测试结束先按 `x` 让机器人趴下，再关闭两个进程。未设置 `LITE3_SIM_AUTO_RL=1` 时沿用原有 `z`/`c` 状态切换。
+
 
 ## 各模块介绍
 

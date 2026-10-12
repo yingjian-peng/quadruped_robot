@@ -32,6 +32,7 @@
 #include <fcntl.h>
 #include <stdexcept>
 #include <unistd.h>
+#include <cstdlib>
 #ifdef USE_RAISIM
     #include "simulation/jueying_raisim_simulation.hpp"
 #endif
@@ -203,9 +204,16 @@ public:
         joint_damping_controller_ = std::make_shared<JointDampingState>(robot_type, "joint_damping", data_ptr);
         liedown_controller_ = std::make_shared<LieDownState>(robot_type, "liedown_state", data_ptr);
 
-        current_controller_ = idle_controller_;
-        current_state_name_ = kIdle;
-        next_state_name_ = kIdle;
+        const char* auto_rl_env = std::getenv("LITE3_SIM_AUTO_RL");
+        const bool start_in_rl =
+#ifdef BUILD_SIMULATION
+            auto_rl_env != nullptr && std::string(auto_rl_env) == "1";
+#else
+            false;
+#endif
+        current_controller_ = start_in_rl ? rl_controller_ : idle_controller_;
+        current_state_name_ = start_in_rl ? kRLControl : kIdle;
+        next_state_name_ = current_state_name_;
    
         // std::cout << "Controller will be enabled in 3 seconds!!!" << std::endl;
         // std::this_thread::sleep_for(std::chrono::seconds(3)); //for safety 

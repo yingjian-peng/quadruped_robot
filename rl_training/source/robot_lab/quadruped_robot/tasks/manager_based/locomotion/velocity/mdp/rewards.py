@@ -516,12 +516,13 @@ def feet_stance_width(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg,
     sensor_cfg: SceneEntityCfg,
-    min_lateral_distance: float = 0.13,
+    min_lateral_distance: float | list[float] | tuple[float, ...] = 0.13,
 ) -> torch.Tensor:
     """Penalize stance feet that move too close to the robot centerline.
 
     The one-sided body-frame bound discourages a tucked-in support stance while
     leaving wider stances and swing-foot placement unconstrained.
+    The bound may be a scalar or four distances in FL, FR, HL, HR order.
     """
     asset: Articulation = env.scene[asset_cfg.name]
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
@@ -539,7 +540,12 @@ def feet_stance_width(
     # body_names are configured in FL, FR, HL, HR order: left feet have +y.
     side_sign = torch.tensor([1.0, -1.0, 1.0, -1.0], device=env.device)
     signed_lateral = foot_offsets_b[..., 1] * side_sign
-    shortfall = torch.clamp(min_lateral_distance - signed_lateral, min=0.0)
+    min_distance = torch.as_tensor(
+        min_lateral_distance, device=signed_lateral.device, dtype=signed_lateral.dtype
+    )
+    if min_distance.ndim > 1 or (min_distance.ndim == 1 and min_distance.shape[0] != 4):
+        raise ValueError("min_lateral_distance must be a scalar or four distances in FL, FR, HL, HR order.")
+    shortfall = torch.clamp(min_distance - signed_lateral, min=0.0)
     reward = torch.sum(shortfall * contacts, dim=1)
     reward *= torch.clamp(-asset.data.projected_gravity_b[:, 2], 0, 0.7) / 0.7
     return reward

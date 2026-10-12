@@ -149,9 +149,15 @@ namespace interface{
                     std::cerr << "Error receiving data" << std::endl;
                     return;
                 }
+                constexpr int expected_packet_size = sizeof(double) + 45 * sizeof(float);
+                if (recvLen != expected_packet_size) {
+                    std::cerr << "Unexpected MuJoCo state packet size: " << recvLen
+                              << " bytes; expected " << expected_packet_size << std::endl;
+                    continue;
+                }
 
-                std::memcpy(data, buffer, 46*sizeof(float));
-                run_time_ = ((double*)(data))[0];
+                std::memcpy(&run_time_, buffer, sizeof(run_time_));
+                std::memcpy(data + 2, buffer + sizeof(run_time_), 45 * sizeof(float));
                 rpy_ = Eigen::Map<Vec3f>(data+2, 3); 
                 acc_ = Eigen::Map<Vec3f>(data+5, 3); 
                 omega_body_ = Eigen::Map<Vec3f>(data+8, 3); 

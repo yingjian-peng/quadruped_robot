@@ -84,7 +84,11 @@ class UniformThresholdVelocityCommand(mdp.UniformVelocityCommand):
 
         if forward_mask.any():
             ids = active_ids[forward_mask]
-            self.vel_command_b[ids, 0] = self._sample_nonzero_axis(self.cfg.ranges.lin_vel_x, ids.numel())
+            self.vel_command_b[ids, 0] = self._sample_x_axis(
+                self.cfg.ranges.lin_vel_x,
+                ids.numel(),
+                self.cfg.negative_x_command_probability,
+            )
             self.vel_command_b[ids, 1:] = 0.0
         if lateral_mask.any():
             ids = active_ids[lateral_mask]
@@ -97,7 +101,11 @@ class UniformThresholdVelocityCommand(mdp.UniformVelocityCommand):
             self.vel_command_b[ids, 2] = self._sample_nonzero_axis(self.cfg.ranges.ang_vel_z, ids.numel())
         if mixed_mask.any():
             ids = active_ids[mixed_mask]
-            self.vel_command_b[ids, 0] = self._sample_nonzero_axis(self.cfg.ranges.lin_vel_x, ids.numel())
+            self.vel_command_b[ids, 0] = self._sample_x_axis(
+                self.cfg.ranges.lin_vel_x,
+                ids.numel(),
+                self.cfg.negative_x_command_probability_mixed,
+            )
             self.vel_command_b[ids, 1] = self._sample_nonzero_axis(self.cfg.ranges.lin_vel_y, ids.numel())
             self.vel_command_b[ids, 2] = self._sample_nonzero_axis(self.cfg.ranges.ang_vel_z, ids.numel())
 
@@ -110,6 +118,26 @@ class UniformThresholdVelocityCommand(mdp.UniformVelocityCommand):
         min_abs = min(0.25, max_abs)
         magnitude = torch.empty(count, device=self.device).uniform_(min_abs, max_abs)
         signs = torch.where(torch.rand(count, device=self.device) < 0.5, -1.0, 1.0)
+        return magnitude * signs
+
+    def _sample_x_axis(
+        self, bounds: tuple[float, float], count: int, negative_probability: float
+    ) -> torch.Tensor:
+        """Sample forward/backward speed with a configurable backward probability."""
+        low, high = bounds
+        if low >= 0.0 or high <= 0.0:
+            return self._sample_nonzero_axis(bounds, count)
+
+        if not 0.0 <= negative_probability <= 1.0:
+            raise ValueError("negative_x_command_probability must be between 0 and 1")
+        max_abs = max(abs(low), abs(high))
+        min_abs = min(0.25, max_abs)
+        magnitude = torch.empty(count, device=self.device).uniform_(min_abs, max_abs)
+        signs = torch.where(
+            torch.rand(count, device=self.device) < negative_probability,
+            -1.0,
+            1.0,
+        )
         return magnitude * signs
 
     def _update_command(self):
@@ -160,3 +188,8 @@ class UniformThresholdVelocityCommandCfg(mdp.UniformVelocityCommandCfg):
     rel_lateral_envs: float = 0.0
     rel_yaw_envs: float = 0.0
     rel_mixed_envs: float = 0.0
+    """Fraction of active environments assigned mixed linear and yaw commands."""
+    negative_x_command_probability: float = 0.5
+    """Probability of sampling negative vx for forward-only commands."""
+    negative_x_command_probability_mixed: float = 0.5
+    """Probability of sampling negative vx for mixed commands."""

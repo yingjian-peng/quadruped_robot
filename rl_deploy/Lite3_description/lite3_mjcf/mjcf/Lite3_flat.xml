@@ -1,0 +1,15 @@
+<mujoco model="Lite3_flat">
+  <include file="../../../../robot_models/deeprobotics/Lite3/Lite3_mjcf/mjcf/Lite3.xml" />
+
+  <option gravity="0 0 -9.81" />
+  <visual>
+    <map znear="0.02" zfar="30" />
+    <quality shadowsize="2048" />
+  </visual>
+
+  <worldbody>
+    <light name="key" pos="0 -2 4" dir="0 0 -1" diffuse="0.8 0.8 0.8" />
+    <geom name="ground" type="plane" pos="0 0 0" size="20 20 0.1"
+          rgba="0.72 0.74 0.77 1" friction="1 0.005 0.0001" />
+  </worldbody>
+</mujoco>

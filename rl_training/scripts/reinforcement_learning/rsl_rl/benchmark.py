@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse  # 定义 benchmark 的命令行参数
 import csv  # 读写 rollout 和汇总 CSV 文件
+import json  # 保存本次仿真的实际物理参数快照
 import math  # 执行数值有效性检查和均值计算
 import os  # 处理脚本路径和环境变量
 import random  # 固定 Python 随机数生成器以复现实验
@@ -34,6 +35,10 @@ parser.add_argument("--output_dir", type=str, default=None, help="Directory for 
 parser.add_argument("--trials", type=int, default=3, help="Independent resets per command (default: 3).")  # 每种命令重复的独立回合数
 parser.add_argument("--duration_s", type=float, default=8.0, help="Duration of each command rollout in seconds.")  # 每个命令用例的仿真时长
 parser.add_argument("--warmup_s", type=float, default=2.0, help="Initial time excluded from steady-state metrics.")  # 稳态指标统计前忽略的预热时长
+parser.add_argument(
+    "--phase_diagnostics", action="store_true",
+    help="Save per-foot, per-gait-phase contact, stance width, and swing scuff diagnostics.",
+)
 parser.add_argument("--seed", type=int, default=42, help="Seed used for reproducible simulator resets.")  # 固定评测随机种子
 parser.add_argument(
     "--case",
@@ -45,12 +50,21 @@ parser.add_argument(
     help="Evaluate one command case; use --trials 1 for a single visible environment.",
 )
 parser.add_argument(
+    "--transition_case",
+    choices=("forward", "backward", "left", "right", "ccw", "cw"),
+    default=None,
+    help="Run a GUI transition: stand, apply one movement command, then return to stand.",
+)
+parser.add_argument("--transition_stand_s", type=float, default=2.0, help="Initial stand duration for transition tests.")
+parser.add_argument("--transition_move_s", type=float, default=6.0, help="Movement duration for transition tests.")
+parser.add_argument("--transition_recover_s", type=float, default=2.0, help="Post-command stand duration for transition tests.")
+parser.add_argument(
     "--nominal_conditions", action="store_true",
     help="Disable startup/reset randomization and use nominal dynamics instead of play.py conditions.",
 )
 parser.add_argument(
-    "--hold_window_s", type=float, default=20.0,
-    help="After evaluation, command zero velocity and keep the policy controlling a stand for this many seconds (GUI default: 20).",
+    "--hold_window_s", type=float, default=5.0,
+    help="After evaluation, command zero velocity and keep the policy controlling a stand for this many seconds (GUI default: 5).",
 )
 parser.add_argument(
     "--fall_height_m", type=float, default=0.18,
@@ -134,6 +148,10 @@ if args_cli.linear_command_scale <= 0.0 or args_cli.yaw_command_scale <= 0.0:
     parser.error("command scales must be positive")
 if args_cli.hold_window_s < 0.0:
     parser.error("--hold_window_s must be nonnegative")
+if args_cli.transition_case is not None and args_cli.case is not None:
+    parser.error("--case and --transition_case cannot be used together")
+if min(args_cli.transition_stand_s, args_cli.transition_move_s, args_cli.transition_recover_s) <= 0.0:
+    parser.error("transition durations must be positive")
 if args_cli.initial_height_m is not None and args_cli.initial_height_m <= 0.0:
     parser.error("--initial_height_m must be positive")
 if args_cli.actuator_damping is not None and args_cli.actuator_damping < 0.0:
@@ -355,7 +373,69 @@ def build_foot_indices(robot, contact_sensor):  # 按步态时钟的顺序查找
     return list(LITE3_FOOT_NAMES), asset_ids, sensor_ids  # 返回足端名称及两组索引
 
 
-def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_ids):  # 并行运行全部命令和试验组合
+def _tensor_snapshot(value):
+    """Convert a runtime tensor/array into compact JSON-safe statistics."""
+    import torch
+
+    tensor = torch.as_tensor(value).detach().cpu().float()
+    return {
+        "shape": list(tensor.shape),
+        "min": float(tensor.min()) if tensor.numel() else None,
+        "max": float(tensor.max()) if tensor.numel() else None,
+        "mean": float(tensor.mean()) if tensor.numel() else None,
+        "first_env": tensor[0].tolist() if tensor.ndim > 0 and tensor.shape[0] else tensor.tolist(),
+    }
+
+
+def runtime_physics_snapshot(env):
+    """Read actual PhysX articulation properties and the configured ground material."""
+    unwrapped = env.unwrapped
+    robot = unwrapped.scene["robot"]
+    view = robot.root_physx_view
+    snapshot = {
+        "preset": "play.py conditions" if not args_cli.nominal_conditions else "randomization disabled",
+        "seed": args_cli.seed,
+        "sim_dt_s": unwrapped.physics_dt,
+        "control_dt_s": unwrapped.step_dt,
+        "asset_usd": unwrapped.cfg.scene.robot.spawn.usd_path,
+        "initial_root_pose_cfg": {
+            "position": list(unwrapped.cfg.scene.robot.init_state.pos),
+            "joint_pos": dict(unwrapped.cfg.scene.robot.init_state.joint_pos),
+        },
+        "terrain_material_cfg": {
+            key: getattr(unwrapped.cfg.scene.terrain.physics_material, key, None)
+            for key in ("static_friction", "dynamic_friction", "restitution", "friction_combine_mode", "restitution_combine_mode")
+        },
+        "rigid_body_names": list(robot.body_names),
+        "joint_names": list(robot.joint_names),
+        "rigid_body_mass_kg": _tensor_snapshot(view.get_masses()),
+        "rigid_body_inertia": _tensor_snapshot(view.get_inertias()),
+        "rigid_body_com": _tensor_snapshot(view.get_coms()),
+        "joint_stiffness_physx": _tensor_snapshot(view.get_dof_stiffnesses()),
+        "joint_damping_physx": _tensor_snapshot(view.get_dof_dampings()),
+        "joint_effort_limit_physx": _tensor_snapshot(view.get_dof_max_forces()),
+        "joint_velocity_limit_physx": _tensor_snapshot(view.get_dof_max_velocities()),
+        "robot_shape_materials": (
+            _tensor_snapshot(view.get_material_properties())
+            if hasattr(view, "get_material_properties")
+            else None
+        ),
+        "actuators": {},
+    }
+    for name, actuator in robot.actuators.items():
+        snapshot["actuators"][name] = {
+            "class": type(actuator).__name__,
+            "stiffness": _tensor_snapshot(actuator.stiffness),
+            "damping": _tensor_snapshot(actuator.damping),
+            "effort_limit": _tensor_snapshot(actuator.effort_limit),
+            "velocity_limit": _tensor_snapshot(actuator.velocity_limit),
+            "min_delay": getattr(actuator.cfg, "min_delay", None),
+            "max_delay": getattr(actuator.cfg, "max_delay", None),
+        }
+    return snapshot
+
+
+def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_ids, physics_path, phase_path=None):  # 并行运行全部命令和试验组合
     """并行评测所有命令和 trial，确保用例使用相同仿真条件。"""
     import torch  # 在 Isaac Sim 启动后导入 PyTorch
 
@@ -363,6 +443,8 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
     obs = unwrap_observation(env.reset())
     unwrapped = env.unwrapped  # 访问未包装的 Isaac Lab 环境
     robot = unwrapped.scene["robot"]  # 读取机器人关节和刚体状态
+    with physics_path.open("w", encoding="utf-8") as file:
+        json.dump(runtime_physics_snapshot(env), file, ensure_ascii=False, indent=2, default=str)
     hipx_ids, _ = robot.find_joints(".*_HipX_joint", preserve_order=True)
     hipy_ids, _ = robot.find_joints(".*_HipY_joint", preserve_order=True)
     knee_ids, _ = robot.find_joints(".*_Knee_joint", preserve_order=True)
@@ -377,11 +459,23 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
         device=unwrapped.device,
         dtype=torch.float32,
     )
-    command_term.vel_command_b[:] = commands  # 覆盖重置时随机采样的速度命令
+    transition = args_cli.transition_case is not None
+    stand_steps = round(args_cli.transition_stand_s / unwrapped.step_dt) if transition else 0
+    move_steps = round(args_cli.transition_move_s / unwrapped.step_dt) if transition else 0
+    transition_end_step = stand_steps + move_steps
+    recover_steps = round(args_cli.transition_recover_s / unwrapped.step_dt) if transition else 0
+    if transition:
+        command_term.vel_command_b.zero_()
+    else:
+        command_term.vel_command_b[:] = commands  # 覆盖重置时随机采样的速度命令
     obs = env.get_observations()  # 刷新首帧观测，确保策略看到的是固定评测命令
 
     # 将评测时长和预热时长换算成仿真步数。
-    total_steps = round(args_cli.duration_s / unwrapped.step_dt)
+    total_steps = (
+        stand_steps + move_steps + recover_steps
+        if transition
+        else round(args_cli.duration_s / unwrapped.step_dt)
+    )
     warmup_steps = round(args_cli.warmup_s / unwrapped.step_dt)
     num_envs = len(runs)  # 每个命令和 trial 组合占用一个并行环境
     # 初始化位移统计，用于计算稳态行走速度和转向漂移。
@@ -395,6 +489,13 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
     moving_command = torch.linalg.vector_norm(commands, dim=1) > 1.0e-4  # 排除站立命令的步态统计
     previous_action = None
     previous_lin_vel_z = None
+    posture_trace = []
+    height_min = torch.full((num_envs,), float("inf"), device=unwrapped.device)
+    height_max = torch.full((num_envs,), float("-inf"), device=unwrapped.device)
+    transition_start_height = torch.full((num_envs,), float("nan"), device=unwrapped.device)
+    transition_min_height = torch.full_like(transition_start_height, float("nan"))
+    transition_move_end_height = torch.full_like(transition_start_height, float("nan"))
+    transition_recover_height = torch.full_like(transition_start_height, float("nan"))
     # 这些指标只对运动命令累计，不将站立结果混入步态质量。
     gait_metric_names = {
         "gait_clock_match",
@@ -424,6 +525,11 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
             "hipy_deviation_mean_abs_rad",
             "knee_deviation_mean_abs_rad",
             "joint_power_w",
+            "effort_saturation_rate",
+            "effort_fraction_max",
+            "velocity_saturation_rate",
+            "support_width_m",
+            "stance_lateral_distance_m",
             "gait_clock_match",
             "diag_sync_fl_hr",
             "diag_sync_fr_hl",
@@ -438,6 +544,38 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
     swing_sample_count = torch.zeros(num_envs, device=unwrapped.device)
     duty_sum = torch.zeros(num_envs, len(foot_names), device=unwrapped.device)
     shank_duty_sum = torch.zeros(num_envs, len(shank_names), device=unwrapped.device)
+    width_count = torch.zeros(num_envs, device=unwrapped.device)
+    width_below_count = torch.zeros_like(width_count)
+    support_width_min = torch.full_like(width_count, float("inf"))
+    foot_lateral_sum = torch.zeros(num_envs, 4, device=unwrapped.device)
+    foot_lateral_count = torch.zeros_like(foot_lateral_sum)
+    foot_lateral_min = torch.full_like(foot_lateral_sum, float("inf"))
+    phase_bins = 20
+    phase_diagnostics = (
+        {
+            name: torch.zeros(num_envs, 4, phase_bins, device=unwrapped.device)
+            for name in (
+                "samples", "contacts", "stance_lateral_sum", "stance_lateral_count",
+                "swing_samples", "swing_contacts", "swing_height_sum",
+            )
+        }
+        if phase_path is not None else None
+    )
+    effort_saturated_sum = torch.zeros(num_envs, device=unwrapped.device)
+    effort_fraction_max = torch.zeros(num_envs, device=unwrapped.device)
+    effort_fraction_peak = torch.zeros(num_envs, device=unwrapped.device)
+    velocity_saturated_sum = torch.zeros(num_envs, device=unwrapped.device)
+    actuator_sample_count = torch.zeros(num_envs, device=unwrapped.device)
+    effort_limits = torch.zeros(robot.num_joints, device=unwrapped.device)
+    velocity_limits = torch.zeros_like(effort_limits)
+    for actuator in robot.actuators.values():
+        actuator_ids = actuator.joint_indices
+        if isinstance(actuator_ids, slice):
+            actuator_ids = torch.arange(robot.num_joints, device=unwrapped.device)[actuator_ids]
+        else:
+            actuator_ids = actuator_ids.to(device=unwrapped.device, dtype=torch.long)
+        effort_limits[actuator_ids] = actuator.effort_limit[0].to(unwrapped.device)
+        velocity_limits[actuator_ids] = actuator.velocity_limit[0].to(unwrapped.device)
     # 记录终止状态、跌倒状态和首次跌倒时的诊断信息。
     terminated = torch.zeros(num_envs, dtype=torch.bool, device=unwrapped.device)
     fall_detected = torch.zeros_like(terminated)
@@ -469,6 +607,13 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
     # 同时推进全部环境，遇到跌倒后停止累计该环境的指标。
     for step in range(total_steps):
         command_term.vel_command_b[:] = commands  # 每步重新写入固定命令，防止环境内部覆盖
+        if transition:
+            command_active = stand_steps <= step < transition_end_step
+            if step == stand_steps:
+                transition_start_height[:] = robot.data.root_pos_w[:, 2]
+            command_term.vel_command_b[:] = commands if command_active else 0.0
+            if step in (stand_steps, transition_end_step):
+                obs = unwrap_observation(env.get_observations())
         with torch.inference_mode():
             # 零动作模式用于区分初始姿态稳定性与策略控制效果。
             actions = (
@@ -478,6 +623,8 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
             )
             obs, _, dones, _ = env.step(actions)  # 执行策略动作并推进一个控制周期
         command_term.vel_command_b[:] = commands  # 恢复固定命令供下一步观测使用
+        if transition:
+            command_term.vel_command_b[:] = commands if command_active else 0.0
         obs = unwrap_observation(obs)  # 兼容包装器返回的观测结构
         dones = torch.as_tensor(dones, device=unwrapped.device, dtype=torch.bool)  # 统一终止标志的数据类型和设备
         gravity_b = robot.data.projected_gravity_b  # 获取机身坐标系下的重力投影
@@ -545,8 +692,22 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
         valid = ~(terminated | dones | fell)  # 排除终止、跌倒以及此前已结束的环境
         terminated |= dones | fell  # 更新该 rollout 的结束状态
 
+        if transition and command_active:
+            height = robot.data.root_pos_w[:, 2]
+            transition_min_height = torch.where(
+                torch.isnan(transition_min_height), height, torch.minimum(transition_min_height, height)
+            )
+            transition_move_end_height[:] = height
+        if transition and step + 1 == total_steps:
+            transition_recover_height[:] = robot.data.root_pos_w[:, 2]
+
         # 预热阶段不计入稳态指标，但保留上一帧数据供后续差分计算。
-        if step < warmup_steps:
+        metric_window = (
+            (step >= stand_steps + warmup_steps) and (step < transition_end_step)
+            if transition
+            else step >= warmup_steps
+        )
+        if not metric_window:
             previous_action = unwrapped.action_manager.action.clone()
             previous_lin_vel_z = robot.data.root_lin_vel_b[:, 2].clone()
             continue
@@ -558,7 +719,8 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
         measurement_last_position[valid] = position[valid]
         measurement_started |= valid
         valid_float = valid.float()
-        gait_valid = valid & moving_command
+        moving_now = moving_command & (command_active if transition else True)
+        gait_valid = valid & moving_now
         gait_valid_float = gait_valid.float()
         sample_count += valid_float
         gait_sample_count += gait_valid_float
@@ -578,6 +740,8 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
         samples["actual_wz"] += angular[:, 2] * valid_float
         samples["vertical_speed_abs"] += actual[:, 2].abs() * valid_float
         samples["base_height_m"] += robot.data.root_pos_w[:, 2] * valid_float
+        height_min = torch.where(valid, torch.minimum(height_min, robot.data.root_pos_w[:, 2]), height_min)
+        height_max = torch.where(valid, torch.maximum(height_max, robot.data.root_pos_w[:, 2]), height_max)
 
         # 记录倾角，并用相邻步的垂直速度差估算垂直加速度。
         samples["tilt_rad"] += tilt * valid_float
@@ -586,6 +750,9 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
         pitch = torch.asin(torch.clamp(gravity_b[:, 0], -1.0, 1.0))
         samples["roll_abs_rad"] += roll.abs() * valid_float
         samples["pitch_abs_rad"] += pitch.abs() * valid_float
+        posture_trace.append(
+            torch.stack((tilt, roll.abs(), pitch.abs()), dim=1).masked_fill(~valid.unsqueeze(1), float("nan"))
+        )
         if previous_lin_vel_z is not None:
             vertical_acc = (actual[:, 2] - previous_lin_vel_z) / unwrapped.step_dt
             samples["vertical_acc_abs"] += vertical_acc.abs() * valid_float
@@ -598,6 +765,41 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
             .max(dim=1)[0]
             > 1.0
         )
+        # 横向足距投影到仅含yaw的机身水平坐标，避免roll/pitch污染宽度。
+        root_quat = robot.data.root_quat_w
+        qw, qx, qy, qz = root_quat.unbind(dim=1)
+        yaw = torch.atan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy.square() + qz.square()))
+        foot_offset = robot.data.body_pos_w[:, asset_foot_ids, :2] - robot.data.root_pos_w[:, None, :2]
+        foot_y = -yaw.sin().unsqueeze(1) * foot_offset[..., 0] + yaw.cos().unsqueeze(1) * foot_offset[..., 1]
+        signed_lateral = foot_y * torch.tensor([1.0, -1.0, 1.0, -1.0], device=unwrapped.device)
+        foot_lateral_sum += signed_lateral * contact * valid_float.unsqueeze(1)
+        foot_lateral_count += contact.float() * valid_float.unsqueeze(1)
+        foot_lateral_min = torch.where(
+            contact & valid.unsqueeze(1),
+            torch.minimum(foot_lateral_min, signed_lateral),
+            foot_lateral_min,
+        )
+        left_contact = contact[:, 0] | contact[:, 2]
+        right_contact = contact[:, 1] | contact[:, 3]
+        left_y = (signed_lateral[:, 0] * contact[:, 0] + signed_lateral[:, 2] * contact[:, 2]) / torch.clamp(
+            contact[:, 0].float() + contact[:, 2].float(), min=1.0
+        )
+        right_y = (signed_lateral[:, 1] * contact[:, 1] + signed_lateral[:, 3] * contact[:, 3]) / torch.clamp(
+            contact[:, 1].float() + contact[:, 3].float(), min=1.0
+        )
+        both_sides_supported = left_contact & right_contact & valid
+        support_width = left_y + right_y
+        samples["support_width_m"] += support_width * both_sides_supported.float()
+        width_count += both_sides_supported.float()
+        width_below_count += ((support_width < 0.26) & both_sides_supported).float()
+        support_width_min = torch.where(
+            both_sides_supported,
+            torch.minimum(support_width_min, support_width),
+            support_width_min,
+        )
+        stance_lateral_distance = signed_lateral.masked_fill(~contact, float("inf")).min(dim=1).values
+        stance_lateral_distance = torch.where(torch.isfinite(stance_lateral_distance), stance_lateral_distance, 0.0)
+        samples["stance_lateral_distance_m"] += stance_lateral_distance * valid_float
         foot_vel_xy_w = robot.data.body_lin_vel_w[:, asset_foot_ids, :2].norm(dim=-1)
         stance_slip_sum += (foot_vel_xy_w * contact).sum(dim=1) * valid_float
         stance_contact_count += contact.sum(dim=1) * valid_float
@@ -615,7 +817,8 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
             1
         ) % 1.0
         offsets = torch.tensor([0.0, 0.5, 0.5, 0.0], device=unwrapped.device)
-        expected_stance = ((phase + offsets) % 1.0) < 0.56
+        leg_phase = (phase + offsets) % 1.0
+        expected_stance = leg_phase < 0.56
         samples["gait_clock_match"] += (expected_stance == contact).float().mean(
             dim=1
         ) * gait_valid_float
@@ -639,6 +842,22 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
         ).sum(dim=1)
         swing_contact_sum += (contact & valid_swing).sum(dim=1)
         swing_sample_count += valid_swing.sum(dim=1)
+        if phase_diagnostics is not None:
+            phase_index = (leg_phase * phase_bins).long().clamp(max=phase_bins - 1).unsqueeze(-1)
+            active = gait_valid_float.unsqueeze(1).expand_as(leg_phase)
+            active_contact = active * contact.float()
+            active_swing = active * expected_swing.float()
+            phase_values = {
+                "samples": active,
+                "contacts": active_contact,
+                "stance_lateral_sum": active_contact * signed_lateral,
+                "stance_lateral_count": active_contact,
+                "swing_samples": active_swing,
+                "swing_contacts": active_swing * contact.float(),
+                "swing_height_sum": active_swing * robot.data.body_pos_w[:, asset_foot_ids, 2],
+            }
+            for name, values in phase_values.items():
+                phase_diagnostics[name].scatter_add_(2, phase_index, values.unsqueeze(-1))
 
         # 累计动作变化、关节偏离默认角和关节功率。
         action = unwrapped.action_manager.action
@@ -658,7 +877,16 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
         samples["joint_power_w"] += (
             torch.abs(robot.data.joint_vel * robot.data.applied_torque).sum(dim=1)
             * valid_float
-    )
+        )
+        effort_ratio = torch.abs(robot.data.applied_torque) / torch.clamp(effort_limits.unsqueeze(0), min=1.0e-6)
+        velocity_ratio = torch.abs(robot.data.joint_vel) / torch.clamp(velocity_limits.unsqueeze(0), min=1.0e-6)
+        samples["effort_saturation_rate"] += (effort_ratio >= 0.98).float().mean(dim=1) * valid_float
+        samples["effort_fraction_max"] += effort_ratio.max(dim=1).values * valid_float
+        effort_fraction_peak = torch.where(
+            valid, torch.maximum(effort_fraction_peak, effort_ratio.max(dim=1).values), effort_fraction_peak
+        )
+        samples["velocity_saturation_rate"] += (velocity_ratio >= 0.98).float().mean(dim=1) * valid_float
+        actuator_sample_count += valid_float
 
     # 对没有任何有效样本的指标返回 NaN，避免产生除零结果。
     def divide_or_nan(numerator, denominator):
@@ -672,7 +900,10 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
     # 按每个指标适用的样本数计算均值。
     samples = {
         name: divide_or_nan(
-            values, gait_sample_count if name in gait_metric_names else sample_count
+            values,
+            gait_sample_count if name in gait_metric_names
+            else width_count if name == "support_width_m"
+            else sample_count,
         )
         for name, values in samples.items()
     }
@@ -681,6 +912,16 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
     swing_scuff_rate = divide_or_nan(swing_contact_sum, swing_sample_count)  # 计算摆动相触地比例
     duty = divide_or_nan(duty_sum, sample_count.unsqueeze(1))  # 计算每只脚的接触占空比
     shank_duty = divide_or_nan(shank_duty_sum, sample_count.unsqueeze(1))  # 计算小腿接触占空比
+    foot_lateral_mean = divide_or_nan(foot_lateral_sum, foot_lateral_count)
+    foot_lateral_min = torch.where(torch.isfinite(foot_lateral_min), foot_lateral_min, torch.full_like(foot_lateral_min, float("nan")))
+    support_width_min = torch.where(torch.isfinite(support_width_min), support_width_min, torch.full_like(support_width_min, float("nan")))
+    if posture_trace:
+        posture_values = torch.stack(posture_trace, dim=0)
+        posture_p95 = torch.nanquantile(posture_values, 0.95, dim=0)
+        posture_peak = torch.nan_to_num(posture_values, nan=0.0).amax(dim=0)
+    else:
+        posture_p95 = torch.full((num_envs, 3), float("nan"), device=unwrapped.device)
+        posture_peak = posture_p95.clone()
     measured_time = sample_count * unwrapped.step_dt  # 将有效样本数换算为实际统计时长
     # 根据预热结束后的起止位置计算水平位移速度。
     displacement = divide_or_nan(
@@ -723,6 +964,24 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
             "stance_slip_mps": float(stance_slip[index]),
             "swing_height_m": float(swing_height[index]),
             "swing_scuff_rate": float(swing_scuff_rate[index]),
+            "base_height_min_m": float(height_min[index]),
+            "base_height_max_m": float(height_max[index]),
+            "tilt_p95_rad": float(posture_p95[index, 0]),
+            "roll_abs_p95_rad": float(posture_p95[index, 1]),
+            "pitch_abs_p95_rad": float(posture_p95[index, 2]),
+            "tilt_peak_rad": float(posture_peak[index, 0]),
+            "roll_abs_peak_rad": float(posture_peak[index, 1]),
+            "pitch_abs_peak_rad": float(posture_peak[index, 2]),
+            "support_width_min_m": float(support_width_min[index]),
+            "support_width_below_0p26_rate": float(width_below_count[index] / torch.clamp(width_count[index], min=1.0)),
+            "stance_lateral_distance_min_m": float(foot_lateral_min[index].min()),
+            "transition_start_height_m": float(transition_start_height[index]),
+            "transition_move_min_height_m": float(transition_min_height[index]),
+            "transition_move_end_height_m": float(transition_move_end_height[index]),
+            "transition_recover_height_m": float(transition_recover_height[index]),
+            "transition_sag_from_start_m": float(transition_start_height[index] - transition_min_height[index]),
+            "transition_recovery_delta_m": float(transition_recover_height[index] - transition_move_end_height[index]),
+            "effort_fraction_peak": float(effort_fraction_peak[index]),
         }
         row.update({name: float(values[index]) for name, values in samples.items()})  # 写入速度、姿态和步态均值
         row.update(
@@ -737,7 +996,47 @@ def evaluate_batch(env, policy, runs, foot_names, asset_foot_ids, sensor_foot_id
                 for shank_index, name in enumerate(shank_names)
             }
         )
+        row.update({
+            key: value
+            for foot_index, name in enumerate(foot_names)
+            for key, value in (
+                (f"stance_lateral_{name}_mean_m", float(foot_lateral_mean[index, foot_index])),
+                (f"stance_lateral_{name}_min_m", float(foot_lateral_min[index, foot_index])),
+            )
+        })
         rows.append(row)  # 添加当前命令和 trial 的结果
+    if phase_diagnostics is not None:
+        diagnostics_rows = []
+        for index, (trial, case) in enumerate(runs):
+            if case.name == "stand":
+                continue
+            for foot_index, foot_name in enumerate(foot_names):
+                for phase_bin in range(phase_bins):
+                    values = {
+                        name: float(tensor[index, foot_index, phase_bin])
+                        for name, tensor in phase_diagnostics.items()
+                    }
+                    samples_in_bin = values["samples"]
+                    stance_count = values["stance_lateral_count"]
+                    swing_count = values["swing_samples"]
+                    diagnostics_rows.append({
+                        "case": case.name,
+                        "trial": trial,
+                        "cmd_vx": case.vx,
+                        "cmd_vy": case.vy,
+                        "cmd_wz": case.wz,
+                        "foot": foot_name,
+                        "leg_phase_bin": phase_bin,
+                        "leg_phase_start": phase_bin / phase_bins,
+                        "leg_phase_end": (phase_bin + 1) / phase_bins,
+                        "samples": samples_in_bin,
+                        "expected_swing_samples": swing_count,
+                        "contact_rate": values["contacts"] / samples_in_bin if samples_in_bin else float("nan"),
+                        "stance_lateral_mean_m": values["stance_lateral_sum"] / stance_count if stance_count else float("nan"),
+                        "swing_scuff_rate": values["swing_contacts"] / swing_count if swing_count else float("nan"),
+                        "swing_foot_height_m": values["swing_height_sum"] / swing_count if swing_count else float("nan"),
+                    })
+        write_csv(phase_path, diagnostics_rows)
     return rows  # 返回全部 rollout 结果
 
 
@@ -888,16 +1187,19 @@ def main() -> None:  # 启动仿真并运行固定命令评测
         for actuator in env_cfg.scene.robot.actuators.values():
             actuator.min_delay = args_cli.actuator_delay_steps
             actuator.max_delay = args_cli.actuator_delay_steps
-    command_cases = tuple(
-        CommandCase(
-            case.name, case.category,
-            case.vx * args_cli.linear_command_scale,
-            case.vy * args_cli.linear_command_scale,
-            case.wz * args_cli.yaw_command_scale,
+    if args_cli.transition_case is not None:
+        command_cases = tuple(case for case in COMMAND_CASES if case.name == args_cli.transition_case)
+    else:
+        command_cases = tuple(
+            CommandCase(
+                case.name, case.category,
+                case.vx * args_cli.linear_command_scale,
+                case.vy * args_cli.linear_command_scale,
+                case.wz * args_cli.yaw_command_scale,
+            )
+            for case in COMMAND_CASES
+            if args_cli.case is None or case.name == args_cli.case
         )
-        for case in COMMAND_CASES
-        if args_cli.case is None or case.name == args_cli.case
-    )
     runs = [(trial, case) for trial in range(args_cli.trials) for case in command_cases]  # 展开所有 trial 与命令组合
     env_cfg.scene.num_envs = len(runs)  # 每种组合并行占用一个环境
     env_cfg.viewer.env_index = 0  # 可视化时始终让视口跟随第一个评测环境
@@ -925,6 +1227,8 @@ def main() -> None:  # 启动仿真并运行固定命令评测
     output_dir.mkdir(parents=True, exist_ok=True)  # 创建结果目录
     raw_path = output_dir / "rollouts.csv"  # 设置逐 rollout 结果文件路径
     summary_path = output_dir / "summary.csv"  # 设置类别汇总文件路径
+    physics_path = output_dir / "physics_snapshot.json"
+    phase_path = output_dir / "phase_diagnostics.csv" if args_cli.phase_diagnostics else None
     print(f"[BENCHMARK] loading checkpoint: {checkpoint}")  # 输出当前评测的模型
     print(
         "[BENCHMARK] environment preset: "
@@ -964,7 +1268,7 @@ def main() -> None:  # 启动仿真并运行固定命令评测
                 flush=True,
             )
         rows = evaluate_batch(
-            env, policy, runs, foot_names, asset_foot_ids, sensor_foot_ids
+            env, policy, runs, foot_names, asset_foot_ids, sensor_foot_ids, physics_path, phase_path
         )
         write_csv(raw_path, rows)  # 写入每个命令和 trial 的原始指标
         write_csv(summary_path, summarize(rows))  # 写入按类别汇总的均值和标准差
@@ -979,6 +1283,9 @@ def main() -> None:  # 启动仿真并运行固定命令评测
         print(f"[BENCHMARK] checkpoint: {checkpoint}")  # 显示评测模型路径
         print(f"[BENCHMARK] rollout metrics: {raw_path}")  # 显示原始结果文件路径
         print(f"[BENCHMARK] category summary: {summary_path}")  # 显示汇总结果文件路径
+        print(f"[BENCHMARK] runtime physics snapshot: {physics_path}", flush=True)
+        if phase_path is not None:
+            print(f"[BENCHMARK] gait phase diagnostics: {phase_path}", flush=True)
         if not args_cli.headless and args_cli.hold_window_s > 0.0:
             print(
                 f"[BENCHMARK] evaluation commands cleared; policy will hold zero-velocity stand "
